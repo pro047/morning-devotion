@@ -82,3 +82,28 @@
 - D:295 시뮬레이터 통과: 재설치 직후 `old=2025/09/10` → `markSeen` `old=2025/09/11` → 2초 뒤 종료 → 재실행 `old=2025/09/11`. 종료는 console 세션 kill 로 일어남 — 사용자 스와이프 종료와 같은 경로인지는 추정
 - D:296 통과: `-quiet` 없는 `build`·`build-for-testing` exit 0, `warning:` 은 appintentsmetadataprocessor 1종뿐
 - 되돌린 뒤 `xcodebuild test … OS=27.2 -quiet -resultBundlePath …` → exit 0, xcresult `Passed` 100/0/0, `git status -sb` clean
+
+<!-- 2026-11-20 이동 (/done) -->
+## 최신 스트림 — 2026-11-20: F-1 M3 묵상 영상 찾기 (resolved)
+
+**요청**: `/next` → 우선순위 1번(글 페이지 영상 조사) → PRD 반영 → M3 범위 문서 → `sap run` → PR 병합·정리
+
+**결정**
+- 2025 영상은 글 페이지의 생방송 영상이어도 된다, M3 는 C안(글 페이지 먼저, 없으면 API) — 확정 결정 표
+- PRD 는 고친다(조사 결과가 PRD 7장 전제를 반증) — 사용자 판단
+- M3 를 나누지 않음, 설계 [결정] D:207 y — 확정 결정 표
+- 커밋 B안(핸드오프·PRD 분리), PR #1 `--merge` 병합
+
+**변경**
+- cbbadf0 `docs: 핸드오프 갱신 (2026-11-20)` · 993c818 `docs: F-1 PRD에 글 페이지 영상 실측과 C안 반영`(US-2 기준 1·FR-5·7장·9장)
+- fd2d3f4 `docs: F-1 M3 범위 문서와 영상 fixture 추가` — `docs/prd/f-1-m3-video.md`, `cast-body-12602.html`, `yt-search-20200713.json`·`yt-search-20200714.json` (키 문자열 grep 0건)
+- 0782bdf `feat: f-1-m3-video 파이프라인 구현` (DevotionVideoFinder·테스트·FixtureLoader, +575 −9) → 53ad3f1 PR #1 병합
+
+**지뢰**: 위 지뢰 섹션 신규 1건(`gh pr merge --delete-branch` 가 worktree 삭제)
+
+**실측**
+- 글 페이지 영상(그 달 마지막 글 표본): 2023~2025 18/18 iframe, 2022 2/2 `<a href>`, 2020~2021 0/4. 2025 영상 제목은 `[ 생방송 | 새벽기도회 | … ]`
+- YouTube API: 채널 `UCSkjujMSzrh6nghHWTSvIJg`. `q=2020/07/13 요한복음 5:30-47` 첫 결과 `M5VtIg1WAic`. 2020 영상 publishedAt 2020-09-13(일괄 업로드). 영상 4개 `embeddable=true`. 호출 6회
+- 할당량: search.list 100 단위, 하루 약 100회 (Google 문서 — 콘솔 미확인)
+- 파이프라인(엔진 b2d94d0): judge 는 codex `gpt-6-astra` 리밋·사용 불가로 `claude-opus-5-5` 로 갈아탐(orch-run1.log:34-35) — 같은 회사 모델이 감사. 판정 미확인 6·반박 1(비차단). [결정] 게이트 1회(y 중계) → 기준선·red·green, attempt 1/3, 되감기 0, 자동 커밋 0782bdf
+- worktree 에서 `xcodebuild test … OS=27.2 -quiet -resultBundlePath …` → exit 0, 136/0/0. `git diff 0782bdf 53ad3f1` 비어 있음

@@ -8,9 +8,9 @@
 - **시뮬레이터 이름 중복** (실측 2026-11-20): `iPhone 17` 이 iOS 26.5 와 27.2 두 개 있다 — destination 에 `OS=27.2` 까지 적어야 하나로 정해진다. `simctl list devices available | grep "iPhone 17"` 의 첫 줄은 26.5 쪽이라 거기에 `simctl install` 하면 exit 16 ("Have 26.5; need 27.0") — 27.2 쪽 UDID 는 `62A98FA5-B5D0-46B5-BF44-E675E7507CA3`
 - **`sap config` 자동 감지 불가** (실측 2026-11-20): package.json·pyproject·pubspec·go.mod·Cargo.toml 만 찾아서 `.xcodeproj` 저장소는 exit 2. `.sap/config` 는 수동으로 쓴다
 - **sap 단계 에이전트는 이 저장소를 컴파일 못 한다** (실측 2026-11-20 f-1-m1-next-pick impl 로그): 샌드박스가 컴파일러 모듈 캐시 쓰기·시뮬레이터 접속을 막아 `swiftc -typecheck`·`xcodebuild` 둘 다 실패. 구현은 컴파일 없이 쓰이고, 판정은 셸이 샌드박스 밖에서 돌리는 `TEST_CMDS` 뿐이다
-- **런처 세션에서 `sap run` 은 [결정] 게이트·재시도 게이트에서 exit 4** (실측 2026-11-20): tty 가 없어서. 재시도 게이트(FAIL_LOG.md)를 y 로 승인하고 재실행하면 attempt 2 가 아니라 **기준선부터** 돈다 — attempt 1 의 미커밋 파일이 남은 worktree 라 "기준선이 이미 빨갛다" 로 DIED (엔진 9671033, sap 쪽에 제보함). `APPROVAL_VIEW.md` 를 그대로 보여주고 y 를 받은 뒤 `SAP_ROOT=<worktree> sap approve <feature> DESIGN.md --relayed y`, 재실행은 **`FRESH_DESIGN` 없이** (붙이면 승인한 설계를 버린다)
+- **런처 세션에서 `sap run` 은 [결정] 게이트·재시도 게이트에서 exit 4** (실측 2026-11-20): tty 가 없어서. 재시도 게이트(FAIL_LOG.md)를 y 로 승인하고 재실행하면 attempt 2 가 아니라 **기준선부터** 돈다 — attempt 1 의 미커밋 파일이 남은 worktree 라 "기준선이 이미 빨갛다" 로 DIED (엔진 9671033, sap 쪽에 제보함). **→ `390c768` 에서 수정** (설치본 5c105a7 포함, 코드 확인 `orchestrate.sh:2129-2131` — `$WORK/retry.pending` 의 시도 번호로 impl 부터 이어감). 가짜 claude 테스트로만 확인, 실주행 미검증 — 승인 재실행 로그에 `↺ 재시도 재개` 와 `── 시도 2/` 가 안 찍히면 이 지뢰가 살아 있는 것 `APPROVAL_VIEW.md` 를 그대로 보여주고 y 를 받은 뒤 `SAP_ROOT=<worktree> sap approve <feature> DESIGN.md --relayed y`, 재실행은 **`FRESH_DESIGN` 없이** (붙이면 승인한 설계를 버린다)
 - **CHECKLIST Attention 에 버린 설계·중복이 섞인다** (실측 2026-11-20, 엔진 b55f47b): FRESH_DESIGN·승인 재실행 뒤 DECISIONS.tsv 가 회차 0 으로 세 번 쌓여 43줄 중 고유 28, 낡은 것 5. 9671033 에서 고쳤다고 sap 쪽이 알려옴 — M2 주행(9671033) Attention 9개에는 중복 없음 (실측)
-- **red 게이트는 테스트 빌드 실패도 red 로 친다** (실측 2026-11-20 M2 1차): verify 가 쓴 테스트의 문법 오류로 red 통과 → impl 은 테스트를 못 고쳐 green 불가. red_out.txt 에 `build failed` 가 있으면 의심한다
+- **red 게이트는 테스트 빌드 실패도 red 로 친다** (실측 2026-11-20 M2 1차): verify 가 쓴 테스트의 문법 오류로 red 통과 → impl 은 테스트를 못 고쳐 green 불가. red_out.txt 에 `build failed` 가 있으면 의심한다. **설치본 5c105a7 에서도 셸 게이트는 미수정** — 패턴 판정은 넣었다 되돌림(`fb3698c`: Swift 는 정상 red 도 `Testing cancelled because the build failed`). 대신 impl 이 테스트 파일 자체의 빌드 오류면 구현 전 BLOCKED 로 verify 재실행을 타게 했다(코드 확인 `prompts/impl.md:39-42`, 모델이 따르는지 미검증). **운용 규칙: red 통과 직후 `red_out.txt` 의 오류 줄이 테스트 파일(`*Tests.swift`) 안의 문법 오류인지, 아직 없는 타입(`cannot find … in scope`)인지 사람이 한 번 본다**
 - **Swift raw string 안의 `"#`** (실측 2026-11-20): `#"... href="#" ..."#` 는 `"#` 에서 문자열이 닫혀 컴파일 오류. HTML fixture 조각엔 `##"…"##`
 - **worktree 의 `git clean -fd` 는 `MorningDevotion.xcodeproj/project.xcworkspace/xcshareddata/` 도 지운다** (실측 2026-11-20): 빌드가 만드는 미추적 폴더. 지워도 빌드 통과
 - **zsh 에서 `PIPESTATUS` 는 비어 있다** (실측 2026-11-20): `xcodebuild … | tail` 의 종료 코드는 xcresult `result` 로 대신 본다
@@ -37,46 +37,49 @@
 | 2026-11-20 | M3 는 글 페이지 추출과 API 대체 경로를 한 마일스톤으로 (나누지 않음, API 키 발급 완료) | `docs/prd/f-1-m3-video.md` |
 | 2026-11-20 | 본문을 장·절로 못 읽은 묵상(passage nil)은 본문 글자가 영상 제목과 정확히 같을 때만 그 영상을 고른다 (M3 설계 [결정] D:207 에 y) | `.pipeline/f-1-m3-video/DESIGN.md:207` (복원본) |
 | 2026-11-20 | sap 검증 명령(TEST_CMDS)은 `xcodebuild test … -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.2' -quiet` 한 줄로 수동 설정 | `.sap/config`, 커밋 114993f |
+| 2026-11-20 | "다 봤어요" 뒤에는 다음 묵상이 아니라 "오늘 구약(신약) 묵상을 마쳤습니다"를 보인다 (A안). 구분마다 누른 날(기기 로컬 날짜)을 저장 키로 추가, 날짜 경계 00:00 | `docs/prd/f-1-next-devotion.md` 9장 1번, `docs/prd/f-1-m4-screen.md` R-5·R-6 |
+| 2026-11-20 | 다음 묵상 목록은 날짜 검색(`search=<yyyy/MM/dd>&shwhere=subject`)으로 가져온다. 마지막으로 본 날짜 + 1일부터 하루씩, 최대 7일 | `docs/prd/f-1-m4-screen.md` R-1·7장 1번 |
+| 2026-11-20 | 영상 검색 실패(`searchFailed`)는 영상 자리만 "인터넷 연결을 확인해 주세요"로 바꾼다 (화면 전체 오류 아님). API 키 없음은 검색 없이 "영상을 찾지 못했습니다" (이쪽은 Claude 제안, 진성 이의 없음) | `docs/prd/f-1-m4-screen.md` R-4·7장 2번 |
+| 2026-11-20 | M4 범위 밖: 시간대 전환 버튼(9장 2번)·다른 해 영상(9장 5번)·임베드 거부 시 유튜브 앱(9장 3번)·설교문 굵은 글씨 | `docs/prd/f-1-m4-screen.md` 6장 |
 
 ## 머신 상태
 
-기준: 2026-11-20 16:07 KST
+기준: 2026-11-20 16:24 KST
 
-- 브랜치 `main` = `origin/main` (53ad3f1 = PR #1 병합, 미커밋 없음) — 실측 `git status -sb`
+- 브랜치 `main` = `origin/main` (01313b1 = M4 범위 문서, push 함. 핸드오프 외 미커밋 없음) — 실측 `git push origin main` exit 0, `git status -sb`
 - 시뮬레이터 iPhone 17 / iOS 27.2 (`62A98FA5…`): 꺼 둠. 확인용 빌드 앱이 설치돼 있고 UserDefaults 에 `readingProgress.lastSeenOld = 2025/09/11` 이 남아 있다 (D:295 확인 흔적, 기본값 아님) — 실측 `-probeRead` 출력. 수동 확인 전에 `simctl uninstall` 로 지운다
 - worktree 없음, `pipeline/*` 브랜치 로컬·원격 모두 없음 — 실측 `git worktree list` · `git fetch --prune`. 산출물: `.pipeline/f-1-m1-next-pick/`(40파일)·`f-1-m2-read-and-progress/`(51파일)·`f-1-m3-video/`(10파일, **복원본** — 목록·출처는 그 안 `RESTORED.md`. STATE·FAIL_LOG·DECISIONS·MODEL_LOG·result·stream 은 유실)
-- sap 엔진: M2 주행 9671033, M3 주행 b2d94d0, 지금 설치본 `bc756f1` (2026-11-20 15:56 설치, M3 주행 도중) — 실측 `sap version`. bc756f1 에 red 게이트·재시도 수정이 들었는지는 미확인
+- sap 엔진: M2 주행 9671033, M3 주행 b2d94d0, 지금 설치본 **`5c105a7`** (2026-11-20 16:15 설치, 스킬 레포 `main` HEAD 와 같음) — 실측 `sap version`, `readlink ~/.local/share/sap/current`, `diff` 설치본↔레포 `orchestrate.sh`·`prompts/impl.md` 차이 0. 재시도 재개(`390c768`)·impl 빌드 오류 BLOCKED(`bc756f1`)·die 시 검증 직전 복원(`5c105a7`) 포함, red 게이트 셸 판정은 그대로 (지뢰 두 항목 참고)
 - `documents-86` 에 보낸 것: red 게이트가 빌드 실패로 통과·재시도 승인 뒤 기준선부터 도는 문제 (msg_id 8324a7c9…). 답: 둘 다 코드 확인(orchestrate.sh:2059-2079, :2253), 수정은 그쪽 사용자 결정 대기 — 그 세션의 메시지가 근거
 
 ## 현재 우선순위
 
-1. F-1 M4(화면) 범위 문서 — 다음 묵상 화면·글 표시·영상 앱 안 재생·"다 봤어요"·안내 문구, API 키를 `Secrets.xcconfig` → Info.plist 로 연결 (M3 범위 문서 6장이 M4 로 넘긴 것). M4 에서 정할 것: F-1 PRD 9장 1번("다 봤어요" 뒤 화면)
-2. M3 실물 확인 (`.pipeline/f-1-m3-video/CHECKLIST.md`): D:212 실제 `search.list` 가 이 URL·키로 fixture 같은 JSON 을 주나, D:213 틀린 키·할당량 초과가 non-2xx 인가, D:214 2020 신약 다른 날 영상 제목도 같은 형식인가 — 키 연결(M4) 뒤. D:215·D:216 은 해소(2026-11-20 표본 20건 영상 id 1개씩 실측, green 에서 JSON fixture 테스트 통과)
-3. 책 이름 표기 전수 조사 — 실측 줄임 사례 `2021/01/08(금) “고린도전 6:12-20”` 1건뿐, 나머지 표기 미측정 (M3 범위에서도 뺌 — 신약 2020 묶음에 사례 없음. 대체 영상 검색이 줄임 표기에 걸리면 그때)
-4. M1 Attention 중 열린 것: D:282 다른 연도·책 제목도 같은 문법인가, D:250 다른 목록 페이지도 `class=subjectColor>` 마크업인가, D:249 MainActor 경고 (M2 attempt 1 빌드에 `DevotionModels.swift:58` 경고 4건 실측 → 2026-11-20 새 derivedData `build`·`build-for-testing` 에선 Swift 경고 0건 실측. 사라진 이유 미확인)
-5. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
-6. sap 설치본이 bc756f1 로 바뀌었다 — 다음 주행 전에 red 게이트·재시도 수정이 들었는지 sap 쪽 기록으로 확인
+1. ~~sap 설치본 확인~~ (2026-11-20 해소) — 재시도 재개는 엔진에서 수정(코드 확인 `orchestrate.sh:2129-2131,2318`), red 게이트는 셸 미수정·impl 프롬프트로 우회(코드 확인 `prompts/impl.md:39-42`). 둘 다 실주행 미검증 → M4 주행이 첫 실주행. 운용 규칙은 지뢰 두 항목
+2. F-1 M4(화면) 구현 — 정본 `docs/prd/f-1-m4-screen.md` (완료 조건 단위 테스트 13개 + 시뮬레이터 수동 3개). 큰 변경(파일 3개 이상·저장 키 추가·화면 영역 테스트 없음) + `.sap/config` 있음 → `sap run` 추천, 경로는 진성 확정 전. 설계 단계에서 확인할 것: 생성 Info.plist(`GENERATE_INFOPLIST_FILE=YES`)에 사용자 정의 키 `YOUTUBE_API_KEY` 를 넣는 방법 (미확인), 지금 xcconfig 가 프로젝트에 연결돼 있지 않음 (코드 확인 `project.xcproj` grep `xcconfig` 0건)
+3. M3 실물 확인 (`.pipeline/f-1-m3-video/CHECKLIST.md`): D:212 실제 `search.list` 가 이 URL·키로 fixture 같은 JSON 을 주나, D:213 틀린 키·할당량 초과가 non-2xx 인가, D:214 2020 신약 다른 날 영상 제목도 같은 형식인가 — 키 연결(M4) 뒤. D:215·D:216 은 해소(2026-11-20 표본 20건 영상 id 1개씩 실측, green 에서 JSON fixture 테스트 통과)
+4. 책 이름 표기 전수 조사 — 실측 줄임 사례 `2021/01/08(금) “고린도전 6:12-20”` 1건뿐, 나머지 표기 미측정 (M3 범위에서도 뺌 — 신약 2020 묶음에 사례 없음. 대체 영상 검색이 줄임 표기에 걸리면 그때)
+5. M1 Attention 중 열린 것: D:282 다른 연도·책 제목도 같은 문법인가, D:250 다른 목록 페이지도 `class=subjectColor>` 마크업인가 (2026-11-20 날짜 검색 페이지 2개에서 `subjectColor` 1개씩 실측 — 부분 근거), D:249 MainActor 경고 (M2 attempt 1 빌드에 `DevotionModels.swift:58` 경고 4건 실측 → 2026-11-20 새 derivedData `build`·`build-for-testing` 에선 Swift 경고 0건 실측. 사라진 이유 미확인)
+6. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
+7. 미확인: 새 fixture 3개(`cast-search-date-*.html`)는 작업 폴더에 CRLF 로 있고 git 이 LF 로 저장한다는 경고가 나왔다 (실측 `git add` 경고). 파서가 CRLF·LF 에서 같은 결과인지, 기존 fixture 도 같은지 미확인 — 새로 clone 한 곳에서 테스트가 다르게 나오면 여기부터
 
-## 최신 스트림 — 2026-11-20: F-1 M3 묵상 영상 찾기 (resolved)
 
-**요청**: `/next` → 우선순위 1번(글 페이지 영상 조사) → PRD 반영 → M3 범위 문서 → `sap run` → PR 병합·정리
 
-**결정**
-- 2025 영상은 글 페이지의 생방송 영상이어도 된다, M3 는 C안(글 페이지 먼저, 없으면 API) — 확정 결정 표
-- PRD 는 고친다(조사 결과가 PRD 7장 전제를 반증) — 사용자 판단
-- M3 를 나누지 않음, 설계 [결정] D:207 y — 확정 결정 표
-- 커밋 B안(핸드오프·PRD 분리), PR #1 `--merge` 병합
+## 최신 스트림 — 2026-11-20: F-1 M4 범위 문서 (resolved)
+
+**요청**: `/next` → 우선순위 1번(M4 범위 문서), 완료 조건 2번(범위 문서 + PRD 9장 1번 결정·반영) → 나눠서 커밋 → push
+
+**결정**: 확정 결정 표의 2026-11-20 M4 행 4개 (9장 1번 A안 · 날짜 검색 최대 7일 · 영상 실패는 영상 자리만 · M4 범위 밖 4개). 커밋은 핸드오프·문서 분리, 문서 커밋은 PR 없이 main 에 직접 push (파이프라인 결과만 PR)
 
 **변경**
-- cbbadf0 `docs: 핸드오프 갱신 (2026-11-20)` · 993c818 `docs: F-1 PRD에 글 페이지 영상 실측과 C안 반영`(US-2 기준 1·FR-5·7장·9장)
-- fd2d3f4 `docs: F-1 M3 범위 문서와 영상 fixture 추가` — `docs/prd/f-1-m3-video.md`, `cast-body-12602.html`, `yt-search-20200713.json`·`yt-search-20200714.json` (키 문자열 grep 0건)
-- 0782bdf `feat: f-1-m3-video 파이프라인 구현` (DevotionVideoFinder·테스트·FixtureLoader, +575 −9) → 53ad3f1 PR #1 병합
+- 4fe4c63 `docs: 핸드오프 갱신 (F-1 M3 마무리)` — 이전 세션 미커밋분
+- 01313b1 `docs: F-1 M4 범위 문서와 날짜 검색 fixture 추가` — `docs/prd/f-1-m4-screen.md`(새 파일, 1~7장), `docs/prd/f-1-next-devotion.md`(US-3 기준 1개 추가·FR-1·6장 3단계·9장 1번 결정), fixture `cast-search-date-20250912.html`·`-20250914.html`·`-20200714.html`
+- push `53ad3f1..01313b1 main -> main`
 
-**지뢰**: 위 지뢰 섹션 신규 1건(`gh pr merge --delete-branch` 가 worktree 삭제)
+**지뢰**: 신규 없음
 
 **실측**
-- 글 페이지 영상(그 달 마지막 글 표본): 2023~2025 18/18 iframe, 2022 2/2 `<a href>`, 2020~2021 0/4. 2025 영상 제목은 `[ 생방송 | 새벽기도회 | … ]`
-- YouTube API: 채널 `UCSkjujMSzrh6nghHWTSvIJg`. `q=2020/07/13 요한복음 5:30-47` 첫 결과 `M5VtIg1WAic`. 2020 영상 publishedAt 2020-09-13(일괄 업로드). 영상 4개 `embeddable=true`. 호출 6회
-- 할당량: search.list 100 단위, 하루 약 100회 (Google 문서 — 콘솔 미확인)
-- 파이프라인(엔진 b2d94d0): judge 는 codex `gpt-6-astra` 리밋·사용 불가로 `claude-opus-5-5` 로 갈아탐(orch-run1.log:34-35) — 같은 회사 모델이 감사. 판정 미확인 6·반박 1(비차단). [결정] 게이트 1회(y 중계) → 기준선·red·green, attempt 1/3, 되감기 0, 자동 커밋 0782bdf
-- worktree 에서 `xcodebuild test … OS=27.2 -quiet -resultBundlePath …` → exit 0, 136/0/0. `git diff 0782bdf 53ad3f1` 비어 있음
+- 빈틈 발견: 다음 묵상 목록을 어느 주소에서 가져올지가 M1~M3 에 없었다 — M1 은 목록 HTML 을 받기만, M2 는 글 주소만 만든다 (코드 확인 `DevotionArticleURL.swift:9`) → M4 R-1 로 넣음
+- 날짜 검색(`shwhere=subject`, 아이폰 Safari UA) 3회 HTTP 200: `2025/09/12` → 1건 `잠언 24:1-10` 글번호 15157, `2025/09/14`(일) → 0건, `2020/07/14` → 1건 `요한복음 6:1-21` 글번호 11481
+- 저장 키는 지금 `readingProgress.lastSeenOld/New` 2개뿐, 묵상 날짜만 저장 (코드 확인 `ReadingProgressStore.swift:13-14,35`) — A안이 저장 키를 늘리는 근거
+- 문서·fixture 에 API 키 문자열(`AIza`) grep 0건
+- 검증: 코드 변경 없음 — 테스트 미실행
