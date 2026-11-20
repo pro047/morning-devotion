@@ -1,0 +1,5 @@
+# serial-agent-pipeline 저장소 설정 — KEY=value, 값은 글자 그대로 (셸 확장 없음). sap doctor 로 점검.
+# 2026-11-20 수동 작성: sap config 가 Xcode 후보를 감지하지 못해 직접 넣었다. 이 머신에서 exit 0 확인.
+# 시뮬레이터는 deployment target(iOS 27.0) 이상이어야 한다.
+
+TEST_CMDS=xcodebuild test -project MorningDevotion.xcodeproj -scheme MorningDevotion -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.2' -quiet
