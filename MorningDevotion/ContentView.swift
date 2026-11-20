@@ -1,17 +1,16 @@
 import SwiftUI
-import Playgrounds
 
 struct ContentView: View {
+    @State private var model = DevotionScreenModel(
+        store: ReadingProgressStore(defaults: .standard),
+        fetcher: URLSessionHTMLFetcher(),
+        searcher: URLSessionYouTubeSearchFetcher(),
+        apiKey: YouTubeAPIKey.read(from: Bundle.main.infoDictionary),
+        calendar: .current,
+        now: { Date() }
+    )
+
     var body: some View {
-        Text("Hello, world!")
-            .padding()
+        DevotionScreenView(model: model)
     }
-}
-
-#Preview {
-    ContentView()
-}
-
-#Playground {
-    _ = 1 + 2
 }
