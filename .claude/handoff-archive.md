@@ -39,3 +39,27 @@
 **실측**
 - `xcodebuild test … name=iPhone 17,OS=27.2 -quiet` → exit 0, 약 106초, xcresult `totalTestCount 1 / passed 1 / failed 0`
 - `sap doctor` → exit 0, 전 항목 OK
+
+<!-- 2026-11-20 이동 (/done) -->
+## 최신 스트림 — 2026-11-20: F-1 M2 묵상 글 읽기와 진행 위치 저장 (resolved)
+
+**요청**: `/next` → F-1 PRD 9장 4번 결정 + M2 범위 문서(완료 조건 2번) → 커밋 → `sap run` → 병합·정리 → push
+
+**결정**
+- 처음 진행 위치는 미리 넣어 둔다(B), 저장값이 없을 때만. "다 봤어요" 뒤 화면(9장 1번)은 M4 로
+- M2 범위: 글번호 추출·글 주소·가져오기 프로토콜·글 파싱·진행 위치 저장. 실제 네트워크 테스트·굵은 글씨·2009년 형식은 제외
+- 설계 [결정] D:290·D:291 둘 다 y
+- 1회차 실패 뒤 B(worktree 를 52bef49 로 되돌리고 처음부터). 되돌리기는 권한 거부로 사용자가 `!` 로 직접 실행
+
+**변경**
+- 52bef49 `docs: F-1 M2 범위 문서와 묵상 글 fixture 추가` — `docs/prd/f-1-m2-read-and-progress.md` 신규, F-1 PRD 9장 1·4번 기록, fixture `cast-body-15155.html`·`cast-body-11480.html`
+- c4e0b12 `feat: f-1-m2-read-and-progress 파이프라인 구현` — 소스 6, 테스트 5. main 에 fast-forward 병합, push
+
+**지뢰**: 위 지뢰 섹션 신규 4건 (모두 이 스트림에서 실측)
+
+**실측**
+- 글 형식(2020·2025): `<TITLE>` 에 제목, 본문 `margin:60px` div 안에 굵은 `본문`·`찬송가` 라벨, 날짜 줄 없음. 2025 글에만 유튜브 iframe
+- 파이프라인 1차: verify 테스트 193줄 문법 오류 → attempt 1 exit 65 → 재시도 승인 후 재실행이 기준선 빨강으로 DIED
+- 파이프라인 2차: 기준선 통과 → red(새 타입 없음 빌드 실패) → green 통과, attempt 1/3, 자동 커밋 c4e0b12. Attention 9개(중복 없음), [사실] 5개
+- 병합 후 main 에서 `TEST_CMDS` → xcresult `Passed` 100/0/0 (종료 코드는 zsh `PIPESTATUS` 빈칸으로 못 잡음)
+
