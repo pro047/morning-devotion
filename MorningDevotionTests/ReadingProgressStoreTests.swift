@@ -264,4 +264,167 @@ struct ReadingProgressStoreTests {
             #expect(s2.load().lastSeenOld == Self.date(2025, 9, 10))
         }
     }
+
+    // MARK: - M4 additions (AC-17 (M4): finished day keys and non-writing read)
+
+    private static let finishedOldRaw = "readingProgress.finishedDayOld"
+    private static let finishedNewRaw = "readingProgress.finishedDayNew"
+
+    // AC-17 (M4) ①⑦: new key names; existing constants unchanged
+    @Test func m4_ac17_constants() {
+        #expect(ReadingProgressStore.finishedOldKey == Self.finishedOldRaw)
+        #expect(ReadingProgressStore.finishedNewKey == Self.finishedNewRaw)
+        #expect(ReadingProgressStore.oldKey == Self.oldKey)
+        #expect(ReadingProgressStore.newKey == Self.newKey)
+        #expect(ReadingProgressStore.defaultProgress == ReadingProgress(
+            lastSeenOld: Self.date(2025, 9, 10),
+            lastSeenNew: Self.date(2020, 7, 11)
+        ))
+    }
+
+    // AC-17 (M4) ②: empty store → both finished days nil, nothing written to any key
+    @Test func m4_ac17_emptyFinishedDayIsNilAndNotWritten() throws {
+        try Self.withSuite { _, defaults in
+            let store = ReadingProgressStore(defaults: defaults)
+            #expect(store.finishedDay(for: .oldTestament) == nil)
+            #expect(store.finishedDay(for: .newTestament) == nil)
+            #expect(defaults.object(forKey: Self.finishedOldRaw) == nil)
+            #expect(defaults.object(forKey: Self.finishedNewRaw) == nil)
+            #expect(defaults.object(forKey: Self.oldKey) == nil)
+            #expect(defaults.object(forKey: Self.newKey) == nil)
+        }
+    }
+
+    // AC-17 (M4) ③: markFinished(old) persists "YYYY/MM/DD" under the old key only; survives a new instance
+    @Test func m4_ac17_markFinishedOldPersists() throws {
+        try Self.withSuite { suiteName, defaults in
+            ReadingProgressStore(defaults: defaults).markFinished(.oldTestament, on: Self.date(2026, 11, 20))
+            #expect(defaults.string(forKey: Self.finishedOldRaw) == "2026/11/20")
+            #expect(defaults.object(forKey: Self.finishedNewRaw) == nil)
+
+            let (_, s2) = try Self.reopen(suiteName)
+            #expect(s2.finishedDay(for: .oldTestament) == Self.date(2026, 11, 20))
+            #expect(s2.finishedDay(for: .newTestament) == nil)
+        }
+    }
+
+    // AC-17 (M4) ③ symmetric: markFinished(new) uses the new key only; zero-padded
+    @Test func m4_ac17_markFinishedNewPersists() throws {
+        try Self.withSuite { suiteName, defaults in
+            ReadingProgressStore(defaults: defaults).markFinished(.newTestament, on: Self.date(2026, 1, 5))
+            #expect(defaults.string(forKey: Self.finishedNewRaw) == "2026/01/05")
+            #expect(defaults.object(forKey: Self.finishedOldRaw) == nil)
+
+            let (_, s2) = try Self.reopen(suiteName)
+            #expect(s2.finishedDay(for: .newTestament) == Self.date(2026, 1, 5))
+            #expect(s2.finishedDay(for: .oldTestament) == nil)
+        }
+    }
+
+    // AC-17 (M4) boundary: a later markFinished overwrites the earlier day
+    @Test func m4_ac17_markFinishedOverwrites() throws {
+        try Self.withSuite { _, defaults in
+            let store = ReadingProgressStore(defaults: defaults)
+            store.markFinished(.oldTestament, on: Self.date(2026, 11, 20))
+            store.markFinished(.oldTestament, on: Self.date(2026, 11, 21))
+            #expect(store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 21))
+            #expect(defaults.string(forKey: Self.finishedOldRaw) == "2026/11/21")
+        }
+    }
+
+    // AC-17 (M4) ④: markFinished does not touch lastSeen keys (empty or stored)
+    @Test func m4_ac17_markFinishedLeavesLastSeenKeys() throws {
+        try Self.withSuite { _, defaults in
+            ReadingProgressStore(defaults: defaults).markFinished(.oldTestament, on: Self.date(2026, 11, 20))
+            #expect(defaults.object(forKey: Self.oldKey) == nil)
+            #expect(defaults.object(forKey: Self.newKey) == nil)
+        }
+        try Self.withSuite { _, defaults in
+            defaults.set("2025/09/11", forKey: Self.oldKey)
+            defaults.set("garbage", forKey: Self.newKey)
+            ReadingProgressStore(defaults: defaults).markFinished(.newTestament, on: Self.date(2026, 11, 20))
+            #expect(defaults.string(forKey: Self.oldKey) == "2025/09/11")
+            #expect(defaults.string(forKey: Self.newKey) == "garbage")
+        }
+    }
+
+    // AC-17 (M4) ④: markSeen does not touch finished-day keys
+    @Test func m4_ac17_markSeenLeavesFinishedKeys() throws {
+        try Self.withSuite { _, defaults in
+            defaults.set("2026/11/19", forKey: Self.finishedOldRaw)
+            let store = ReadingProgressStore(defaults: defaults)
+            store.markSeen(.oldTestament, date: Self.date(2025, 9, 11))
+            store.markSeen(.newTestament, date: Self.date(2020, 7, 13))
+            #expect(defaults.string(forKey: Self.finishedOldRaw) == "2026/11/19")
+            #expect(defaults.object(forKey: Self.finishedNewRaw) == nil)
+            #expect(store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 19))
+        }
+    }
+
+    // AC-17 (M4) ⑤: unreadable finished values → nil, raw value left as is
+    @Test(arguments: ["garbage", "2026/11/2", ""])
+    func m4_ac17_unreadableFinishedDayIsNilAndKept(raw: String) throws {
+        try Self.withSuite { _, defaults in
+            defaults.set(raw, forKey: Self.finishedOldRaw)
+            defaults.set(raw, forKey: Self.finishedNewRaw)
+            let store = ReadingProgressStore(defaults: defaults)
+            #expect(store.finishedDay(for: .oldTestament) == nil)
+            #expect(store.finishedDay(for: .newTestament) == nil)
+            #expect(defaults.string(forKey: Self.finishedOldRaw) == raw)
+            #expect(defaults.string(forKey: Self.finishedNewRaw) == raw)
+        }
+    }
+
+    // AC-17 (M4) ⑥: storedProgress on an empty store → defaults, nothing written
+    @Test func m4_ac17_storedProgressEmptyDoesNotWrite() throws {
+        try Self.withSuite { _, defaults in
+            let store = ReadingProgressStore(defaults: defaults)
+            #expect(store.storedProgress() == ReadingProgressStore.defaultProgress)
+            #expect(defaults.object(forKey: Self.oldKey) == nil)
+            #expect(defaults.object(forKey: Self.newKey) == nil)
+            #expect(defaults.object(forKey: Self.finishedOldRaw) == nil)
+            #expect(defaults.object(forKey: Self.finishedNewRaw) == nil)
+        }
+    }
+
+    // AC-17 (M4) ⑥: storedProgress returns stored values per key, default for the missing one
+    @Test func m4_ac17_storedProgressReadsStoredValues() throws {
+        try Self.withSuite { _, defaults in
+            defaults.set("2025/09/11", forKey: Self.oldKey)
+            let store = ReadingProgressStore(defaults: defaults)
+            #expect(store.storedProgress() == ReadingProgress(
+                lastSeenOld: Self.date(2025, 9, 11),
+                lastSeenNew: Self.date(2020, 7, 11)
+            ))
+            #expect(defaults.object(forKey: Self.newKey) == nil)
+
+            defaults.set("2020/07/13", forKey: Self.newKey)
+            #expect(store.storedProgress() == ReadingProgress(
+                lastSeenOld: Self.date(2025, 9, 11),
+                lastSeenNew: Self.date(2020, 7, 13)
+            ))
+        }
+    }
+
+    // AC-17 (M4) ⑥: garbage stored value → default returned, raw "garbage" left in place
+    @Test func m4_ac17_storedProgressGarbageKept() throws {
+        try Self.withSuite { _, defaults in
+            defaults.set("garbage", forKey: Self.oldKey)
+            defaults.set("2020/7/13", forKey: Self.newKey)
+            let store = ReadingProgressStore(defaults: defaults)
+            #expect(store.storedProgress() == ReadingProgressStore.defaultProgress)
+            #expect(defaults.string(forKey: Self.oldKey) == "garbage")
+            #expect(defaults.string(forKey: Self.newKey) == "2020/7/13")
+        }
+    }
+
+    // AC-17 (M4) ⑥ boundary: storedProgress agrees with load() for readable values
+    @Test func m4_ac17_storedProgressMatchesLoad() throws {
+        try Self.withSuite { _, defaults in
+            defaults.set("2025/09/12", forKey: Self.oldKey)
+            defaults.set("2020/07/14", forKey: Self.newKey)
+            let store = ReadingProgressStore(defaults: defaults)
+            #expect(store.storedProgress() == store.load())
+        }
+    }
 }
