@@ -18,6 +18,9 @@
 - **`simctl launch --console-pty` 프로세스를 kill 하면 앱도 같이 종료된다** (실측 2026-11-20 D:295): 뒤이은 `simctl terminate` 는 exit 3 "found nothing to terminate"
 - **`gh pr merge --delete-branch` 가 그 브랜치의 worktree 를 폴더째 지운다** (실측 2026-11-20 PR #1, gh 2.100.0): 06:59 에 테스트가 돈 worktree 가 07:01 병합 직후 `No such file`. gitignore 대상인 `.pipeline/<f>/` 산출물이 같이 사라졌다. 순서는 **① 산출물 복사 → ② PR 병합 → ③ worktree 정리**. 잃었으면 `~/.claude/projects/-Users-ijinseong-Documents-morning-devotion-pipeline-<f>/*.jsonl` 의 Write 입력으로 DESIGN·JUDGE·VERIFY·IMPL 을 되살릴 수 있다 (M3 에서 DESIGN·JUDGE 바이트 수 일치 실측, `.pipeline/f-1-m3-video/RESTORED.md`)
 - **fixture html 은 테스트 번들 루트에 평탄화된다** (실측 2026-11-20): `MorningDevotionTests/Fixtures/*.html` → `MorningDevotionTests.xctest/*.html` (하위 폴더 없음)
+- **sap 단계 샌드박스 안에서 Xcode `xcodeproj` 는 `project.xcproj` 를 저장하지 못한다** (실측 2026-11-20 M4 impl): `Failed to write project file: You don’t have permission to save the file “project.xcproj”` exit 1 → impl BLOCKED. 같은 명령을 샌드박스 밖(scratchpad 복사본)에서 돌리면 exit 0. 같은 폴더에 `cp`·`printf` 쓰기는 샌드박스 안에서도 성공(DESIGN.md:55). `.sap/config` 의 `SANDBOX_EXCLUDE=/Applications/Xcode.app/Contents/Developer/usr/bin/xcodeproj:*` (3246c30) 뒤 재실행에서 통과
+- **PATH 의 `xcodeproj` 는 Homebrew CocoaPods 도구다** (실측 2026-11-20): `/opt/homebrew/bin/xcodeproj group …` → `Unknown command: group`. Xcode 의 프로젝트 편집 CLI 는 `/Applications/Xcode.app/Contents/Developer/usr/bin/xcodeproj` — 전체 경로로 부른다. `SANDBOX_EXCLUDE` 패턴도 전체 경로라 `xcodeproj …` 로 부르면 안 걸린다 (추정)
+- **`sap worktree` 는 메인에 미커밋 변경이 있으면 런처 세션에서 중단된다** (실측 2026-11-20): `이대로 계속? (y/N)` 을 `/dev/tty` 로 읽어 tty 없음 → 중단. 커밋하거나 사람 확인 뒤 `WT_YES=1`
 
 ## 확정 결정
 
@@ -41,45 +44,49 @@
 | 2026-11-20 | 다음 묵상 목록은 날짜 검색(`search=<yyyy/MM/dd>&shwhere=subject`)으로 가져온다. 마지막으로 본 날짜 + 1일부터 하루씩, 최대 7일 | `docs/prd/f-1-m4-screen.md` R-1·7장 1번 |
 | 2026-11-20 | 영상 검색 실패(`searchFailed`)는 영상 자리만 "인터넷 연결을 확인해 주세요"로 바꾼다 (화면 전체 오류 아님). API 키 없음은 검색 없이 "영상을 찾지 못했습니다" (이쪽은 Claude 제안, 진성 이의 없음) | `docs/prd/f-1-m4-screen.md` R-4·7장 2번 |
 | 2026-11-20 | M4 범위 밖: 시간대 전환 버튼(9장 2번)·다른 해 영상(9장 5번)·임베드 거부 시 유튜브 앱(9장 3번)·설교문 굵은 글씨 | `docs/prd/f-1-m4-screen.md` 6장 |
+| 2026-11-20 | M4 설계 [결정] D:405 "글은 받았지만 읽지 못한 경우(파싱 실패·글번호 없음·HTTP 오류)도 '인터넷 연결을 확인해 주세요'+'다시 시도'" 에 y, D:406 "백그라운드 복귀 때 시간대·날짜가 바뀌었으면 다시 불러온다(`refreshIfStale`)" 에 y | `.pipeline/f-1-m4-screen/DESIGN.md:405-406`, `APPROVALS.md`, AC-19·AC-21 |
+| 2026-11-20 | sap 단계 에이전트가 Xcode `xcodeproj` 를 샌드박스 밖에서 돌리게 한다 (`SANDBOX_EXCLUDE`, 이번 주행만 런처가 대신 돌리는 A안 대신 B안) | 커밋 3246c30, `.sap/config` |
 
 ## 머신 상태
 
-기준: 2026-11-20 16:24 KST
+기준: 2026-11-20 18:40 KST (PR 병합 직전 — 병합 결과는 이 갱신 뒤)
 
-- 브랜치 `main` = `origin/main` (01313b1 = M4 범위 문서, push 함. 핸드오프 외 미커밋 없음) — 실측 `git push origin main` exit 0, `git status -sb`
+- 브랜치 `main` = `3246c30`, `origin/main` 보다 2개 앞 (7ccb2a8 핸드오프·3246c30 sap 설정, push 전) — 실측 `git status -sb`. `pipeline/f-1-m4-screen` = `b0c122e feat: f-1-m4-screen 파이프라인 구현` (자동 커밋, 19파일 +1795/−12, push 전) — 실측 `git log`
 - 시뮬레이터 iPhone 17 / iOS 27.2 (`62A98FA5…`): 꺼 둠. 확인용 빌드 앱이 설치돼 있고 UserDefaults 에 `readingProgress.lastSeenOld = 2025/09/11` 이 남아 있다 (D:295 확인 흔적, 기본값 아님) — 실측 `-probeRead` 출력. 수동 확인 전에 `simctl uninstall` 로 지운다
-- worktree 없음, `pipeline/*` 브랜치 로컬·원격 모두 없음 — 실측 `git worktree list` · `git fetch --prune`. 산출물: `.pipeline/f-1-m1-next-pick/`(40파일)·`f-1-m2-read-and-progress/`(51파일)·`f-1-m3-video/`(10파일, **복원본** — 목록·출처는 그 안 `RESTORED.md`. STATE·FAIL_LOG·DECISIONS·MODEL_LOG·result·stream 은 유실)
+- worktree `../morning-devotion-pipeline-f-1-m4-screen` 있음 (PR 병합 뒤 정리 대상). 산출물: `.pipeline/f-1-m1-next-pick/`(40파일)·`f-1-m2-read-and-progress/`(51파일)·`f-1-m3-video/`(10파일, **복원본** — 목록·출처는 그 안 `RESTORED.md`)·`f-1-m4-screen/`(47파일, worktree 에서 메인으로 복사 — 파일 수 일치 실측). M4 실행 보관 3개: `~/.local/state/sap/archive/morning-devotion-pipeline-f-1-m4-screen/f-1-m4-screen/` (실측 `ls`)
 - sap 엔진: M2 주행 9671033, M3 주행 b2d94d0, 지금 설치본 **`5c105a7`** (2026-11-20 16:15 설치, 스킬 레포 `main` HEAD 와 같음) — 실측 `sap version`, `readlink ~/.local/share/sap/current`, `diff` 설치본↔레포 `orchestrate.sh`·`prompts/impl.md` 차이 0. 재시도 재개(`390c768`)·impl 빌드 오류 BLOCKED(`bc756f1`)·die 시 검증 직전 복원(`5c105a7`) 포함, red 게이트 셸 판정은 그대로 (지뢰 두 항목 참고)
 - `documents-86` 에 보낸 것: red 게이트가 빌드 실패로 통과·재시도 승인 뒤 기준선부터 도는 문제 (msg_id 8324a7c9…). 답: 둘 다 코드 확인(orchestrate.sh:2059-2079, :2253), 수정은 그쪽 사용자 결정 대기 — 그 세션의 메시지가 근거
 
 ## 현재 우선순위
 
-1. ~~sap 설치본 확인~~ (2026-11-20 해소) — 재시도 재개는 엔진에서 수정(코드 확인 `orchestrate.sh:2129-2131,2318`), red 게이트는 셸 미수정·impl 프롬프트로 우회(코드 확인 `prompts/impl.md:39-42`). 둘 다 실주행 미검증 → M4 주행이 첫 실주행. 운용 규칙은 지뢰 두 항목
-2. F-1 M4(화면) 구현 — 정본 `docs/prd/f-1-m4-screen.md` (완료 조건 단위 테스트 13개 + 시뮬레이터 수동 3개). 큰 변경(파일 3개 이상·저장 키 추가·화면 영역 테스트 없음) + `.sap/config` 있음 → `sap run` 추천, 경로는 진성 확정 전. 설계 단계에서 확인할 것: 생성 Info.plist(`GENERATE_INFOPLIST_FILE=YES`)에 사용자 정의 키 `YOUTUBE_API_KEY` 를 넣는 방법 (미확인), 지금 xcconfig 가 프로젝트에 연결돼 있지 않음 (코드 확인 `project.xcproj` grep `xcconfig` 0건)
-3. M3 실물 확인 (`.pipeline/f-1-m3-video/CHECKLIST.md`): D:212 실제 `search.list` 가 이 URL·키로 fixture 같은 JSON 을 주나, D:213 틀린 키·할당량 초과가 non-2xx 인가, D:214 2020 신약 다른 날 영상 제목도 같은 형식인가 — 키 연결(M4) 뒤. D:215·D:216 은 해소(2026-11-20 표본 20건 영상 id 1개씩 실측, green 에서 JSON fixture 테스트 통과)
-4. 책 이름 표기 전수 조사 — 실측 줄임 사례 `2021/01/08(금) “고린도전 6:12-20”` 1건뿐, 나머지 표기 미측정 (M3 범위에서도 뺌 — 신약 2020 묶음에 사례 없음. 대체 영상 검색이 줄임 표기에 걸리면 그때)
-5. M1 Attention 중 열린 것: D:282 다른 연도·책 제목도 같은 문법인가, D:250 다른 목록 페이지도 `class=subjectColor>` 마크업인가 (2026-11-20 날짜 검색 페이지 2개에서 `subjectColor` 1개씩 실측 — 부분 근거), D:249 MainActor 경고 (M2 attempt 1 빌드에 `DevotionModels.swift:58` 경고 4건 실측 → 2026-11-20 새 derivedData `build`·`build-for-testing` 에선 Swift 경고 0건 실측. 사라진 이유 미확인)
-6. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
-7. 미확인: 새 fixture 3개(`cast-search-date-*.html`)는 작업 폴더에 CRLF 로 있고 git 이 LF 로 저장한다는 경고가 나왔다 (실측 `git add` 경고). 파서가 CRLF·LF 에서 같은 결과인지, 기존 fixture 도 같은지 미확인 — 새로 clone 한 곳에서 테스트가 다르게 나오면 여기부터
+1. F-1 M4 실물 확인 (`.pipeline/f-1-m4-screen/CHECKLIST.md`): [사실] 9개 — 실제 키를 `Secrets.xcconfig` 에 넣고 D:414 Info.plist 키, D:415·416 영상 재생, D:417 화면 배치, D:418 테스트 중 네트워크 없음, D:419 실제 날짜 검색. Attention 33개 중 #36(any→some 컴파일)·D:413(Secrets 없이 빌드)은 green 빌드 통과로 사실상 해소 (추정 — 체크는 사람이)
+2. M3 실물 확인 (`.pipeline/f-1-m3-video/CHECKLIST.md`): D:212 실제 `search.list` 가 이 URL·키로 fixture 같은 JSON 을 주나, D:213 틀린 키·할당량 초과가 non-2xx 인가, D:214 2020 신약 다른 날 영상 제목도 같은 형식인가 — M4 키 연결 완료 — 지금 가능. D:215·D:216 은 해소(2026-11-20 표본 20건 영상 id 1개씩 실측, green 에서 JSON fixture 테스트 통과)
+3. 책 이름 표기 전수 조사 — 실측 줄임 사례 `2021/01/08(금) “고린도전 6:12-20”` 1건뿐, 나머지 표기 미측정 (M3 범위에서도 뺌 — 신약 2020 묶음에 사례 없음. 대체 영상 검색이 줄임 표기에 걸리면 그때)
+4. M1 Attention 중 열린 것: D:282 다른 연도·책 제목도 같은 문법인가, D:250 다른 목록 페이지도 `class=subjectColor>` 마크업인가 (2026-11-20 날짜 검색 페이지 2개에서 `subjectColor` 1개씩 실측 — 부분 근거), D:249 MainActor 경고 (M2 attempt 1 빌드에 `DevotionModels.swift:58` 경고 4건 실측 → 2026-11-20 새 derivedData `build`·`build-for-testing` 에선 Swift 경고 0건 실측. 사라진 이유 미확인)
+5. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
+6. 미확인: 새 fixture 3개(`cast-search-date-*.html`)는 작업 폴더에 CRLF 로 있고 git 이 LF 로 저장한다는 경고가 나왔다 (실측 `git add` 경고). 파서가 CRLF·LF 에서 같은 결과인지, 기존 fixture 도 같은지 미확인 — 새로 clone 한 곳에서 테스트가 다르게 나오면 여기부터
 
+## 최신 스트림 — 2026-11-20: sap 설치본 판정 → F-1 M4 파이프라인 완주 (resolved)
 
+**요청**: `/next` → 우선순위 1번 완료 조건 2(설치본 판정 + 운용 규칙 지뢰) → "파이프라인 돌리자" → 병합 전 핸드오프 갱신
 
-## 최신 스트림 — 2026-11-20: F-1 M4 범위 문서 (resolved)
-
-**요청**: `/next` → 우선순위 1번(M4 범위 문서), 완료 조건 2번(범위 문서 + PRD 9장 1번 결정·반영) → 나눠서 커밋 → push
-
-**결정**: 확정 결정 표의 2026-11-20 M4 행 4개 (9장 1번 A안 · 날짜 검색 최대 7일 · 영상 실패는 영상 자리만 · M4 범위 밖 4개). 커밋은 핸드오프·문서 분리, 문서 커밋은 PR 없이 main 에 직접 push (파이프라인 결과만 PR)
+**결정**: 확정 결정 표의 2026-11-20 행 2개 (M4 [결정] D:405·406 y · `SANDBOX_EXCLUDE` B안). worktree 생성 전 핸드오프 먼저 커밋(진성 선택)
 
 **변경**
-- 4fe4c63 `docs: 핸드오프 갱신 (F-1 M3 마무리)` — 이전 세션 미커밋분
-- 01313b1 `docs: F-1 M4 범위 문서와 날짜 검색 fixture 추가` — `docs/prd/f-1-m4-screen.md`(새 파일, 1~7장), `docs/prd/f-1-next-devotion.md`(US-3 기준 1개 추가·FR-1·6장 3단계·9장 1번 결정), fixture `cast-search-date-20250912.html`·`-20250914.html`·`-20200714.html`
-- push `53ad3f1..01313b1 main -> main`
+- 7ccb2a8 `docs: 핸드오프 갱신 (sap 5c105a7 판정)` — 머신 상태 sap 설치본, 지뢰 "런처 세션 sap run"(390c768 수정)·"red 게이트"(셸 미수정 + 운용 규칙)
+- 3246c30 `chore: sap 샌드박스 밖에서 Xcode xcodeproj 실행 허용` — `.sap/config` `SANDBOX_EXCLUDE` 1줄 (`sap doctor` 통과, WARN 1)
+- b0c122e (`pipeline/f-1-m4-screen`, AUTO_COMMIT) — 소스 12·테스트 4·`App.xcconfig`·`MorningDevotion-Info.plist`·`project.xcproj`(xcconfig 참조·Debug/Release base configuration·`INFOPLIST_FILE`)
 
-**지뢰**: 신규 없음
+**주행** (실행 ID 3개, 장부·보관 참고)
+1. 16:30 설계 → judge 반박 1 → 설계 되감기 1회 → judge 반박 0·미확인 25 → [결정] 2개로 exit 4 → 진성 y 중계 (`sap approve --relayed y`)
+2. 16:54 기준선 통과 → verify(테스트 74개 @Test, VERIFY.md) → red 통과 → impl BLOCKED exit 3 (project.xcproj 쓰기 거부)
+3. 17:20 `RESUME_FROM=impl` → impl → green 통과 → DONE exit 0 (17:23)
+
+**지뢰**: 신규 3개 (샌드박스 xcodeproj · PATH 의 CocoaPods xcodeproj · sap worktree tty 중단)
 
 **실측**
-- 빈틈 발견: 다음 묵상 목록을 어느 주소에서 가져올지가 M1~M3 에 없었다 — M1 은 목록 HTML 을 받기만, M2 는 글 주소만 만든다 (코드 확인 `DevotionArticleURL.swift:9`) → M4 R-1 로 넣음
-- 날짜 검색(`shwhere=subject`, 아이폰 Safari UA) 3회 HTTP 200: `2025/09/12` → 1건 `잠언 24:1-10` 글번호 15157, `2025/09/14`(일) → 0건, `2020/07/14` → 1건 `요한복음 6:1-21` 글번호 11481
-- 저장 키는 지금 `readingProgress.lastSeenOld/New` 2개뿐, 묵상 날짜만 저장 (코드 확인 `ReadingProgressStore.swift:13-14,35`) — A안이 저장 키를 늘리는 근거
-- 문서·fixture 에 API 키 문자열(`AIza`) grep 0건
-- 검증: 코드 변경 없음 — 테스트 미실행
+- sap 설치본 5c105a7 = 스킬 레포 HEAD (`diff` 0). 재시도 재개 `orchestrate.sh:2129-2131,2318`, impl 빌드 오류 BLOCKED `prompts/impl.md:39-42` (코드 확인)
+- red_out.txt `error:` 26줄 전부 `cannot find '…' in scope` — 정상 red (지뢰의 운용 규칙 첫 적용)
+- 샌드박스 원인 판별: scratchpad 복사본에서 Xcode xcodeproj `group add-file` exit 0, diff `{ "path": "App.xcconfig" }` 1줄
+- green: `xcodebuild test … -quiet` 통과, `test_out.txt` `error:` 0줄. 통과·실패 테스트 개수는 미측정(-quiet)
+- 재시도 재개(390c768)·impl 빌드 오류 BLOCKED(bc756f1)는 이번 주행에서 발동하지 않음 — 여전히 실주행 미검증

@@ -107,3 +107,24 @@
 - 할당량: search.list 100 단위, 하루 약 100회 (Google 문서 — 콘솔 미확인)
 - 파이프라인(엔진 b2d94d0): judge 는 codex `gpt-6-astra` 리밋·사용 불가로 `claude-opus-5-5` 로 갈아탐(orch-run1.log:34-35) — 같은 회사 모델이 감사. 판정 미확인 6·반박 1(비차단). [결정] 게이트 1회(y 중계) → 기준선·red·green, attempt 1/3, 되감기 0, 자동 커밋 0782bdf
 - worktree 에서 `xcodebuild test … OS=27.2 -quiet -resultBundlePath …` → exit 0, 136/0/0. `git diff 0782bdf 53ad3f1` 비어 있음
+
+<!-- 2026-11-20 이동 (/done) -->
+## 최신 스트림 — 2026-11-20: F-1 M4 범위 문서 (resolved)
+
+**요청**: `/next` → 우선순위 1번(M4 범위 문서), 완료 조건 2번(범위 문서 + PRD 9장 1번 결정·반영) → 나눠서 커밋 → push
+
+**결정**: 확정 결정 표의 2026-11-20 M4 행 4개 (9장 1번 A안 · 날짜 검색 최대 7일 · 영상 실패는 영상 자리만 · M4 범위 밖 4개). 커밋은 핸드오프·문서 분리, 문서 커밋은 PR 없이 main 에 직접 push (파이프라인 결과만 PR)
+
+**변경**
+- 4fe4c63 `docs: 핸드오프 갱신 (F-1 M3 마무리)` — 이전 세션 미커밋분
+- 01313b1 `docs: F-1 M4 범위 문서와 날짜 검색 fixture 추가` — `docs/prd/f-1-m4-screen.md`(새 파일, 1~7장), `docs/prd/f-1-next-devotion.md`(US-3 기준 1개 추가·FR-1·6장 3단계·9장 1번 결정), fixture `cast-search-date-20250912.html`·`-20250914.html`·`-20200714.html`
+- push `53ad3f1..01313b1 main -> main`
+
+**지뢰**: 신규 없음
+
+**실측**
+- 빈틈 발견: 다음 묵상 목록을 어느 주소에서 가져올지가 M1~M3 에 없었다 — M1 은 목록 HTML 을 받기만, M2 는 글 주소만 만든다 (코드 확인 `DevotionArticleURL.swift:9`) → M4 R-1 로 넣음
+- 날짜 검색(`shwhere=subject`, 아이폰 Safari UA) 3회 HTTP 200: `2025/09/12` → 1건 `잠언 24:1-10` 글번호 15157, `2025/09/14`(일) → 0건, `2020/07/14` → 1건 `요한복음 6:1-21` 글번호 11481
+- 저장 키는 지금 `readingProgress.lastSeenOld/New` 2개뿐, 묵상 날짜만 저장 (코드 확인 `ReadingProgressStore.swift:13-14,35`) — A안이 저장 키를 늘리는 근거
+- 문서·fixture 에 API 키 문자열(`AIza`) grep 0건
+- 검증: 코드 변경 없음 — 테스트 미실행
