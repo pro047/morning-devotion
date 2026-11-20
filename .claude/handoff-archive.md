@@ -63,3 +63,22 @@
 - 파이프라인 2차: 기준선 통과 → red(새 타입 없음 빌드 실패) → green 통과, attempt 1/3, 자동 커밋 c4e0b12. Attention 9개(중복 없음), [사실] 5개
 - 병합 후 main 에서 `TEST_CMDS` → xcresult `Passed` 100/0/0 (종료 코드는 zsh `PIPESTATUS` 빈칸으로 못 잡음)
 
+
+<!-- 2026-11-20 이동 (/done) -->
+## 최신 스트림 — 2026-11-20: F-1 M2 실물 확인 D:294~296 (resolved)
+
+**요청**: `/next` → 우선순위 1번(M2 실물 확인 3개), 완료 조건 "3개를 증거와 함께 채우고, 틀리면 기록만"
+
+**결정**
+- D:295 는 실기기 대신 시뮬레이터로 대체 (확정 결정 표)
+- 확인 방법: 테스트 타깃이 아니라 `MyApp.init` 에 launch arg(`-probeFetch`·`-probeMark`·`-probeRead`) 임시 코드 — 앱 프로세스의 기본 User-Agent 를 그대로 쓰려고. 확인 뒤 `git checkout` 으로 되돌림
+
+**변경**: 커밋 없음. `.pipeline/f-1-m2-read-and-progress/CHECKLIST.md`(gitignore) 의 D:294~296 에 결과·출력 원문 기록
+
+**지뢰**: 위 지뢰 섹션 신규 2건(`project.xcproj`, `--console-pty` kill), 시뮬레이터 이름 중복 항목에 install 사례 추가
+
+**실측**
+- D:294 통과: `PROBE fetch ok bytes=19489`, `ac6 passage=true hymn=true prefix=true suffix=true noTag=true`. 2xx 범위만 검사하므로 정확한 200 은 출력에 없음
+- D:295 시뮬레이터 통과: 재설치 직후 `old=2025/09/10` → `markSeen` `old=2025/09/11` → 2초 뒤 종료 → 재실행 `old=2025/09/11`. 종료는 console 세션 kill 로 일어남 — 사용자 스와이프 종료와 같은 경로인지는 추정
+- D:296 통과: `-quiet` 없는 `build`·`build-for-testing` exit 0, `warning:` 은 appintentsmetadataprocessor 1종뿐
+- 되돌린 뒤 `xcodebuild test … OS=27.2 -quiet -resultBundlePath …` → exit 0, xcresult `Passed` 100/0/0, `git status -sb` clean
