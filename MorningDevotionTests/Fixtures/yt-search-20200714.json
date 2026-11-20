@@ -1,0 +1,55 @@
+{
+  "kind": "youtube#searchListResponse",
+  "etag": "MVWWrdbArFoaDPvrCHL6CiS7NSs",
+  "regionCode": "KR",
+  "pageInfo": {
+    "totalResults": 2,
+    "resultsPerPage": 1
+  },
+  "items": [
+    {
+      "kind": "youtube#searchResult",
+      "etag": "Cqq1A611RrcPxuvmgcG3FyfdVas",
+      "id": {
+        "kind": "youtube#video",
+        "videoId": "qQf9Zh5ErEg"
+      },
+      "snippet": {
+        "publishedAt": "2020-09-13T06:04:38Z",
+        "channelId": "UCSkjujMSzrh6nghHWTSvIJg",
+        "title": "2020/07/14(화) “요한복음 6:1-21” / 최현준",
+        "description": "묵상을 위한 질문 1. 큰 무리가 예수님을 따라왔던 이유는 무엇입니까? 2. 그대는 예수님을 만나기 전과 후가 어떻게 달라졌습니까? 3.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/qQf9Zh5ErEg/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/qQf9Zh5ErEg/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/qQf9Zh5ErEg/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/qQf9Zh5ErEg/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/qQf9Zh5ErEg/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "100주년기념교회",
+        "liveBroadcastContent": "none",
+        "publishTime": "2020-09-13T06:04:38Z"
+      }
+    }
+  ]
+}
