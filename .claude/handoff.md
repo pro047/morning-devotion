@@ -49,11 +49,11 @@
 
 ## 머신 상태
 
-기준: 2026-11-20 18:40 KST (PR 병합 직전 — 병합 결과는 이 갱신 뒤)
+기준: 2026-11-20 18:45 KST
 
-- 브랜치 `main` = `3246c30`, `origin/main` 보다 2개 앞 (7ccb2a8 핸드오프·3246c30 sap 설정, push 전) — 실측 `git status -sb`. `pipeline/f-1-m4-screen` = `b0c122e feat: f-1-m4-screen 파이프라인 구현` (자동 커밋, 19파일 +1795/−12, push 전) — 실측 `git log`
+- 브랜치 `main` = `origin/main` = `22d1aad` (PR #2 병합 — M4). `pipeline/f-1-m4-screen` 로컬·원격 삭제 — 실측 `git push origin --delete`, `git branch -d`. 병합 후 main 에서 `xcodebuild test`(TEST_CMDS, -quiet 없이) 210 tests / 12 suites 통과 `TEST SUCCEEDED` (실측)
 - 시뮬레이터 iPhone 17 / iOS 27.2 (`62A98FA5…`): 꺼 둠. 확인용 빌드 앱이 설치돼 있고 UserDefaults 에 `readingProgress.lastSeenOld = 2025/09/11` 이 남아 있다 (D:295 확인 흔적, 기본값 아님) — 실측 `-probeRead` 출력. 수동 확인 전에 `simctl uninstall` 로 지운다
-- worktree `../morning-devotion-pipeline-f-1-m4-screen` 있음 (PR 병합 뒤 정리 대상). 산출물: `.pipeline/f-1-m1-next-pick/`(40파일)·`f-1-m2-read-and-progress/`(51파일)·`f-1-m3-video/`(10파일, **복원본** — 목록·출처는 그 안 `RESTORED.md`)·`f-1-m4-screen/`(47파일, worktree 에서 메인으로 복사 — 파일 수 일치 실측). M4 실행 보관 3개: `~/.local/state/sap/archive/morning-devotion-pipeline-f-1-m4-screen/f-1-m4-screen/` (실측 `ls`)
+- worktree 없음 (`git worktree remove` 실측, `git worktree list` 메인 1개). 산출물: `.pipeline/f-1-m1-next-pick/`(40파일)·`f-1-m2-read-and-progress/`(51파일)·`f-1-m3-video/`(10파일, **복원본** — 목록·출처는 그 안 `RESTORED.md`)·`f-1-m4-screen/`(47파일, worktree 에서 메인으로 복사 — 파일 수 일치 실측). M4 실행 보관 3개: `~/.local/state/sap/archive/morning-devotion-pipeline-f-1-m4-screen/f-1-m4-screen/` (실측 `ls`)
 - sap 엔진: M2 주행 9671033, M3 주행 b2d94d0, 지금 설치본 **`5c105a7`** (2026-11-20 16:15 설치, 스킬 레포 `main` HEAD 와 같음) — 실측 `sap version`, `readlink ~/.local/share/sap/current`, `diff` 설치본↔레포 `orchestrate.sh`·`prompts/impl.md` 차이 0. 재시도 재개(`390c768`)·impl 빌드 오류 BLOCKED(`bc756f1`)·die 시 검증 직전 복원(`5c105a7`) 포함, red 게이트 셸 판정은 그대로 (지뢰 두 항목 참고)
 - `documents-86` 에 보낸 것: red 게이트가 빌드 실패로 통과·재시도 승인 뒤 기준선부터 도는 문제 (msg_id 8324a7c9…). 답: 둘 다 코드 확인(orchestrate.sh:2059-2079, :2253), 수정은 그쪽 사용자 결정 대기 — 그 세션의 메시지가 근거
 
