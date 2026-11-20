@@ -12,6 +12,7 @@
 
 | 날짜 | 결정 | 근거 위치 |
 |---|---|---|
+| 2026-11-20 | F-1 M1 다음 묵상 = 마지막으로 본 날짜 뒤 가장 이른 글, 연도 제한 없음 (설계 [결정] D:277 에 "아니오") | `docs/prd/f-1-m1-next-pick.md` R-4 |
 | 2026-11-20 | sap 검증 명령(TEST_CMDS)은 `xcodebuild test … -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.2' -quiet` 한 줄로 수동 설정 | `.sap/config`, 커밋 114993f |
 
 ## 머신 상태
@@ -24,10 +25,11 @@
 
 ## 현재 우선순위
 
-1. F-1 PRD(`docs/prd/`) 기준으로 기능 작업 시작 — 앱 뼈대·테스트 타깃·검증 명령까지 준비됨
-2. sap 쪽 `--cmd` 반영되면 `sap config --force --cmd …` 로 `.sap/config` 재생성 검토
-3. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
-4. 114993f push 여부 결정
+1. F-1 M1(다음 묵상 고르기) 파이프라인 주행 — `docs/prd/f-1-m1-next-pick.md`, worktree `../morning-devotion-pipeline-f-1-m1-next-pick`
+2. M3 전에 책 이름 표기 전수 조사 — 실측 줄임 사례 `2021/01/08(금) “고린도전 6:12-20”` 1건뿐, 나머지 표기 미측정 (2026-11-20 결정: M3 로 미룸)
+3. sap 쪽 `--cmd` 반영되면 `sap config --force --cmd …` 로 `.sap/config` 재생성 검토
+4. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
+5. 114993f push 여부 결정
 
 ## 최신 스트림 — 2026-11-20: sap 검증 명령 설정 (resolved)
 

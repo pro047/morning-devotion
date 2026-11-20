@@ -1,0 +1,760 @@
+        <!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="ko" xml:lang="ko">
+
+    <head>
+        <title>100주년기념교회</title>
+         <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>         <!--
+    <meta http-equiv='cache-control' content='no-cache'>
+    <meta http-equiv='pragma' content='no-cache'>
+    -->
+        <meta name="Author" content="100주년기념교회" />
+        <meta name="viewport" content="width=1024" />
+        <!-- <meta http-equiv="X-UA-Compatible" content="IE=EmulateIE7" /> -->
+        <meta name="omni_page" content="100church - Index" />
+        <meta name="Keywords" content="100church" />
+                <meta property="fb:app_id" content="facebook-jssdk" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="" />
+        <meta property="og:image" content="https://100church.org/home/skin_board/100ch/b_img/site/logoforfb.png" />
+        <meta property="og:description" content="" />
+                                <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/earlyaccess/nanumgothic.css">
+        <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/earlyaccess/nanummyeongjo.css">
+
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap" rel="stylesheet">
+        
+        <script type="application/ld+json">
+        {
+            "@context": "http://schema.org",
+            "@type": "Person",
+            "name": "100주년기념교회",
+            "url": "https://www.100church.org",
+            "sameAs": [
+                "https://www.facebook.com/100church/",
+                "https://www.youtube.com/channel/UCSkjujMSzrh6nghHWTSvIJg"
+            ]
+        }
+        </script>
+
+        <!--[if IE 6]>
+    <style type="text/css">
+        body,input,textarea,select,button,table,div,td,li,a{font-family:'돋움',Dotum;}
+    </style>
+    <![endif]-->
+        
+	<script language='javascript'>
+		this_url		="/home/board.php?board=cast&config=6&category=6&search=%EC%9D%B4%EC%82%AC%EC%95%BC+19&shwhere=subject";
+		this_skin	="./skin_board/100ch";
+		is_Admin	="";
+		is_Member="";
+		is_Category="6";
+		TnTimgurl="./img";
+		shop_this_skin="";
+		shop_url="";
+		TnTpopupeffect="";
+	</script>
+
+
+			<script type='text/javascript' src='./skin_board/100ch/b_script/main_script.js'></script>
+			<script type='text/javascript' src='./skin_board/100ch/iwindow/create_iwindow.js'></script>
+		        <!-- <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script> -->
+        <!-- <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script> -->
+        <script src="./skin_board/100ch/b_script/jquery191.min.js"></script>
+        
+        <link rel="stylesheet" type="text/css" href="./skin_board/100ch/b_script/base.css?20250311">
+        <style type="text/css">
+        /* Common */
+        body,
+        input,
+        textarea,
+        select,
+        button,
+        table,
+        div,
+        td {
+            font-family: 'Apple SD 산돌고딕 Neo', 'Apple SD Gothic Neo', '나눔고딕', 'Nanum Gothic', sans-serif, '굴림';
+            font-size: 12px;
+            color: #666
+        }
+
+        body {
+            background: url('./skin_board/100ch/b_img/site/bg_brown.gif') top no-repeat;
+        }
+
+        a {
+            text-decoration: none;
+            color: #2d3949
+        }
+
+        a:viseted {
+            text-decoration: none;
+            color: #2d3949
+        }
+
+        a:hover,
+        a:active,
+        a:focus {
+            text-decoration: none;
+            color: #000;
+        }
+
+        html {
+            width: 100%;
+            height: 100%;
+        }
+
+        /*  height:100%; */
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0px;
+            padding: 0px;
+            font-size: 9pt;
+        }
+
+        /*  height:100%; */
+        .SLB_center {
+            cursor: pointer;
+            visibility: hidden;
+            border: solid 4px #614318;
+            background-color: #FFF;
+        }
+
+        .SLB_close {
+            cursor: pointer;
+            display: none;
+            font-family: verdana, tahoma;
+            background-color: #614318;
+            color: #ffffff;
+            padding-bottom: 4px;
+            text-align: center;
+            font-size: 14px;
+            position: absolute;
+            width: 100px;
+            right: 0px;
+            top: 0px;
+            padding-top: 3px;
+        }
+
+        .SLB_caption {
+            cursor: pointer;
+            display: none;
+            font-family: verdana, tahoma;
+            font-size: 9pt;
+            background-color: #614318;
+            color: #ffffff;
+            padding-bottom: 4px;
+        }
+
+        #SLB_loading {
+            cursor: pointer;
+            display: none;
+            z-index: 99998;
+            position: absolute;
+            font-family: verdana, tahoma;
+            font-size: 9pt;
+            background-color: #614318;
+            color: #ffffff;
+            padding: 3px 0px 4px 0px;
+            border: solid 2px #cfcfcf;
+        }
+
+        /* #SLB_content {overflow: auto !important;-webkit-overflow-scrolling: touch !important;position:fixed;} */
+
+
+        .navi_menu {
+            float: left;
+            display: inline;
+            cursor: pointer;
+            margin-left: 29px;
+            color: #c2bab0;
+            font-size: 15px;
+            font-family: 'Gowun Batang', serif;
+            font-weight: 700;
+            letter-spacing: -1px;
+            line-height: 24px;
+        }
+
+        .navi_sub {
+            position: absolute;
+            top: 24px;
+            height: 25px;
+            display: none;
+            cursor: pointer;
+            background: #ebf2b1;
+            filter: alpha(opacity=80);
+            opacity: 0.80;
+            line-height: 25px;
+            font-weight: normnal;
+            letter-spacing: -1px;
+            text-align: center;
+        }
+
+        .navi_sub a:link {
+            text-decoration: none;
+            color: #2d3949;
+            font-size: 13px;
+            font-family: 'Nanum Gothic', '맑은고딕', malgun gothic, '돋움', Dotum, AppleGothic, sans-serif;
+        }
+
+        .navi_sub a:viseted {
+            text-decoration: none;
+            color: #2d3949;
+            font-size: 13px;
+            font-family: 'Nanum Gothic', '맑은고딕', malgun gothic, '돋움', Dotum, AppleGothic, sans-serif;
+        }
+
+        .navi_sub a:hover,
+        a:active,
+        a:focus {
+            text-decoration: none;
+            color: #000;
+            font-size: 13px;
+            font-family: 'Nanum Gothic', '맑은고딕', malgun gothic, '돋움', Dotum, AppleGothic, sans-serif;
+        }
+
+        .tab_now {
+            float: left;
+            padding-top: 7px;
+            color: #555;
+            width: 150px;
+            border: 1px solid #555;
+            height: 23px;
+            border-bottom: 0px;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .tab_tab {
+            float: left;
+            margin-top: 8px;
+            color: #ffffff;
+            background: #555;
+            padding-top: 2px;
+            width: 115px;
+            height: 21px;
+            font-size: 13px;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        .tab_margin {
+            float: left;
+            border-bottom: 1px solid #555;
+            width: 2px;
+            height: 30px;
+        }
+
+        .julgtnb {
+            position: absolute;
+            left: 274px;
+            top: -48px;
+            width: 200px;
+            height: 50px;
+        }
+
+        .julgititle {
+            color: #614419;
+            margin-top: 20px;
+            text-align: left;
+            font-weight: bold;
+            font-size: 16px;
+            font-family: 'Gowun Batang', serif;
+        }
+
+        .julgguide {
+            position: absolute;
+            left: 872px;
+            top: -36px;
+            font-size: 8px;
+            color: #888;
+            font-family: 'Nanum Gothic';
+            letter-spacing: -1px;
+        }
+
+        .julgibon {
+            float: right;
+        }
+
+                </style>
+
+        <script type='text/javascript' src='./skin_board/100ch/b_script/slb.js?1795143844'></script>
+        <script language='JavaScript'>
+        //이미지링크 점섬 없애기 : 글쓰기 편집기 모드의 글씨크기 변환과 충돌하여 일단 제거 2011-09-10
+        //		function bluring(){
+        //		if(event.srcElement.tagName=="A"||event.srcElement.tagName=="IMG") document.body.focus();
+        //		}
+        //		document.onfocusin=bluring;
+        //네비게이션
+        function nover(ts) {
+            for (i = 1; i <= 8; i++) {
+                var ncont = document.getElementById('ncont_' + i);
+                if (i == ts) {
+                    ncont.style.display = 'block';
+                } else {
+                    ncont.style.display = 'none';
+                }
+            }
+        }
+
+        function nout(ts) {
+            for (i = 1; i <= 8; i++) {
+                var ncont = document.getElementById('ncont_' + i);
+                ncont.style.display = 'none';
+            }
+        }
+
+        function videotag(vurl) {
+            var rannum = Math.floor(Math.random() * 10000) + 1;
+            var newHTML = "<video width=0 height=0 src='" + vurl + "' type='video/mp4' id='" + rannum + "' autobuffer controls autoplay>";
+            document.getElementById('tempdiv').innerHTML = newHTML;
+            document.getElementById(rannum).play();
+        }
+        </script>
+    </head>
+
+    <body>
+
+
+
+        <div id="SLB_loading" onclick="SLB();" title="로딩중...클릭시 취소"> Loading... </div>
+        <div id="SLB_film" style="z-index: 99997; position:absolute; display:none; width:100%; height:100%; background-color:#000000; filter:Alpha(opacity=60); opacity:0.6; -moz-opacity:0.6;"></div>
+        <div id="SLB_content" onclick="SLB();" align="center" style="z-index: 99999; position:absolute;"></div>
+
+
+        <div style="width:100%;text-align:center;">
+                        <div style="width:1005px;height:690px;margin:0 auto;margin-top:40px;">
+
+                <div style='width:1005px;height:109px;overflow:hidden;'>
+                    <!--좌탑 61px-->
+                    <div style="float:left;display:inline;"><a href='board.php?board=page&command=skin_insert&exe=home&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'><img src="./skin_board/100ch/b_img/site/top_left.gif?201811" width='280px' height='61px' border=0></a></div>
+                    <!--로고 61px-->
+                    <div style="float:left;display:inline;height:60px;margin-left:389px;">
+                        <!-- #614419 -->
+                        <div style='background:#614419;background-clip: content-box;background-size: cover;height:61px;width:197px;'><a href='board.php?board=page&command=skin_insert&exe=home&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'><img src="./skin_board/100ch/b_img/site/top_logo_copy.gif" border=0 style='height:61px;width:129px;'><img src="./skin_board/100ch/b_img/site/top_logo.png" border=0 style='height:61px;width:68px;'></a></div>
+                        <!-- <a href='board.php?board=page&command=skin_insert&exe=home&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'><img src="./skin_board/100ch/b_img/site/top_logo_brown.png?201504" border=0></a> -->
+                    </div>
+                    <div class='cb' style='height:0;'></div>
+                    <!--네비 49px-->
+                    <div style="width:1005px;height:49px;background:url('./skin_board/100ch/b_img/site/navi_left.gif') left top repeat-y;position:relative;">
+                        <div style='width:162px;height:1px;background:#FF8E40;position:absolute;left:0;top:0;'></div>
+                                                                        <div style="position:absolute;left:0;top:-30px;width:160px;height:60px;cursor:pointer;" onclick=location.href='board.php?board=page&command=skin_insert&exe=home'>&nbsp;</div>
+                        <div style="widht:843px;height:24px;background:#614419;margin-left:162px;" class='gradient'>
+                            <nobr>
+                                <div class='navi_menu' style="margin-left:20px;" onmouseover="nover(1)">교회소개</div>
+                                <div class='navi_menu' onmouseover="nover(2)">안내 및 공지</div>
+                                <div class='navi_menu' onmouseover="nover(3)" onclick="location.href='board.php?board=cast&category=1'">주일예배</div>
+                                <div class='navi_menu' onmouseover="nover(4)" onclick="location.href='board.php?board=cast&category=4'">수요성경공부</div>
+                                <div class='navi_menu' onmouseover="nover(5)" onclick="nover(5)">집회 · 행사</div>
+                                <div class='navi_menu' onmouseover="nover(100)" onclick="location.href='board.php?board=cast&category=5&config=5'">구역성경공부</div>
+                                <div class='navi_menu' onmouseover="nover(100)" onclick="location.href='board.php?board=cast&category=6&config=6'">새벽묵상</div>
+                                <div class='navi_menu' style="letter-spacing:-1px;" onmouseover="nover(6)">English·</div>
+                                <div class='navi_menu' style="margin-left:0px;letter-spacing:-1px;" onmouseover="nover(7)">日本語·</div>
+                                <div class='navi_menu' style="margin-left:0px;letter-spacing:-1px;" onmouseover="nover(8)">中國語</div>
+                            </nobr>
+                            <div class='cb'></div>
+                        </div>
+                        <div id='ncont_1' class='navi_sub' style="left:100px;width:750px;" onmouseover="nover(1)">
+                            <a href="board.php?board=page&command=body&no=2&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">한국기독교100주년기념재단 연혁</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=body&no=13&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">100주년기념교회에 대하여</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=body&no=5&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">창립경과보고</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=11&config=4&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">미래준비위원회 활동보고</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=body&no=6&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">교회정관</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=body&no=7&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">섬기는 이</a>
+                        </div>
+                        <div id='ncont_2' class='navi_sub' style="left:180px;width:720px;" onmouseover="nover(2)">
+                            <a href="board.php?board=page&command=body&no=11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">예배시간안내</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=1&config=2&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">주보</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=2&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">교회에서</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=3&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">구역에서</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=4&config=5&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">경조사</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=5&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">새가족</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=6&config=3&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">행사앨범</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=7&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">교회소식지</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=8&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">상임위회의록.결산보고서</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="http://100church.org/home/board.php?board=school">교회학교에서</a>
+                        </div>
+                        <div id='ncont_3' class='navi_sub' style="left:335px;width:220px;" onmouseover="nover(3)">
+                            <a href="board.php?board=cast&category=1&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">예배</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=2&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">말씀선포</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=skin_insert&exe=sermon_index&cod=topic&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">절기별 예배</a>
+                            <!--<span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=skin_insert&exe=sermon_index&cod=tag&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">Tags분류</a>-->
+                        </div>
+                        <div id='ncont_4' class='navi_sub' style="left:255px;width:670px;" onmouseover="nover(4)">
+                            <a href="board.php?board=cast&category=4&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">최근설교</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&sortorder=1&linkstep=1&search=데살로니가전서&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">데살로니가전서</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&sortorder=1&linkstep=1&search=갈라디아서&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">갈라디아서</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&sortorder=1&linkstep=1&search=열왕기&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">열왕기상하</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&sortorder=1&linkstep=1&search=사무엘&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">사무엘상하</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&sortorder=1&linkstep=1&search=고린도전서&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">고린도전서</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&sortorder=1&linkstep=1&search=고린도후서&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">고린도후서</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&sortorder=1&linkstep=1&search=창세기&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">창세기</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&sortorder=1&linkstep=1&search=출애굽기&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">출애굽기</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=4&sort=user_add1&linkstep=1&search=none&shwhere=user_add11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">기타</a>
+                        </div>
+                        <div id='ncont_5' class='navi_sub' style="left:485px;width:200px;" onmouseover="nover(5)">
+                            <a href="board.php?board=castjip&config=3&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">집회</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=casthang&config=3&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">행사</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=castpraise&config=3&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">찬양</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=castspecial&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270">특별영상</a>
+                            <!--<span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=specialevent&indextype=1&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270" target=_blank>감사주일4행시</a>-->
+                        </div>
+                        <div id='ncont_6' class='navi_sub' style="left:215px;width:790px;" onmouseover="nover(6)">
+                            <a href="board.php?board=page&command=body&no=18&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270" style="letter-spacing:-1px;">About the Church</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=body&no=35&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270" style="letter-spacing:-1px;">The Articles</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=body&no=19&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270" style="letter-spacing:-1px;">Church Ministries and Services</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=page&command=body&no=17&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270" style="letter-spacing:-1px;">The Truth of Yanghwajin</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=9&config=2&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270" style="letter-spacing:-1px;">Orders of Worship</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=church&category=10&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270" style="letter-spacing:-1px;">Announcements</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href="board.php?board=cast&category=3&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270" style="letter-spacing:-1px;">Sermons</a>
+                        </div>
+                        <div id='ncont_7' class='navi_sub' style="left:245px;width:780px;" onmouseover="nover(7)">
+                            <a href='board.php?board=page&command=body&no=20&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>韓国キリスト教100周年記念財団沿革</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=page&command=body&no=21&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>100周年記念教会について</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=page&command=body&no=22&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>創立経過報告</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=page&command=body&no=23&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>教会定款</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=page&command=body&no=24&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>礼拝時間案内</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=cast&category=8&sort=uid,user_add1&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>礼拝メッセージ</a>
+                        </div>
+                        <div id='ncont_8' class='navi_sub' style="left:365px;width:650px;" onmouseover="nover(8)">
+                            <a href='board.php?board=page&command=body&no=25&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>韩国基督教100周年纪念财团沿革</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=page&command=body&no=26&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>关于100周年纪念教会</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=page&command=body&no=27&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>创建进程报告</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=page&command=body&no=28&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>教会章程</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=page&command=body&no=29&config=119&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>礼拜时间</a><span style='color:#9ea281;margin:0 7px;'>|</span><a href='board.php?board=cast&category=11&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270'>礼拜讲道</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!--왼쪽-->
+                                <div style="float:left;display:inline;width:882px;height:555px;background:url('./skin_board/100ch/b_img/site/sub_contbgbg3.gif') left top no-repeat;position:relative;">
+
+                    <div style="width:211px;height:505px;float:left;display:inline;">
+
+                        
+                        
+
+                        <div style='position:absolute;left:134px;top:135px;width:38px;height:54px;' onclick="location.href='board.php?board=part&category=1'">
+                            &nbsp;
+                        </div>
+
+                        <div style='position:absolute;left:45px;top:455px;width:165px;height:74px;overflow:hidden;border-left:1px solid #87540F;cursor:pointer;'>
+                            <div style='margin-left:-1px;' onclick="top.location.href='https://media1.100church.org:1443/EVENT/YangHwaJin2.wmv/playlist.m3u8'">
+                                <img src="./skin_board/100ch/b_img/site/yhj_truth_ban_a.gif" border='0'>
+                            </div>
+                            <div style='margin-left:-1px;' onclick="top.location.href='https://player.vimeo.com/video/330285307/playlist.m3u8'">
+                                <img src="./skin_board/100ch/b_img/site/yhj_truth_ban_b.gif" border='0'>
+                            </div>
+                            <div style='margin-left:-1px;' onclick="top.location.href='https://player.vimeo.com/video/328777191/playlist.m3u8'">
+                                <img src="./skin_board/100ch/b_img/site/yhj_truth_ban_c.gif" border='0'>
+                            </div>
+                        </div>
+
+
+                        
+                                            </div>
+
+                    <div style="margin:22px 0 0 11px;width:637px;height:505px;position:relative;float:left;display:inline;">
+                                                                        <div style='height:67px;position:relative;'><img src='./skin_board/100ch/b_img/site/cast_6.gif' border=0>                        <form method=get name=board_searchForm action="/home/board.php"><input type="hidden" name="PHPSESSID" value="a4f9ca0f1044bb3c972f4800a4346270" />
+                            <input type=hidden name=board value="cast">
+                            <input type=hidden name=category value="6">
+                            <input type=hidden name=config value="6">
+                            <input type=hidden name=sort value="">
+                            <input type=hidden name=sortorder value="">
+                            <input type=hidden name=indextype value="">
+                            <input type=hidden name=indexorder value="">
+                            <input type=hidden name=linkstep value='1'>
+                            <input type=hidden name=shwhere value='subject|tbody'>
+                            <div style='position:absolute;top:30px;right:32px;'>
+                                검색어 <input type=text name=search value='이사야 19'>
+                                <input type='submit' value='검색'>
+                            </div>
+                        </form>
+                        </div>                        
+<style type='text/css'>
+
+	td{color:#354457;}
+	a{text-decoration:none;color:#354457}
+	a:viseted{text-decoration:none;color:#354457}
+	a:hover,a:active,a:focus{text-decoration:none;color:#000}
+	#mainIndexTable td{} /*글목록 전체 <td>*/
+	.head_td			{height:32px; color:#624419; border-width:0;background:#E1DECD;text-align:left;border-bottom:10px solid #EEEEE5;}
+	.head_td img	{border-width:0;}	.head_td a:link,a:visited{color:#333333;}
+	.list_default		{padding-left:2px;}
+	.list_check		{text-align:center; width:20px;}
+	.list_no				{text-align:center; font-size:8pt; font-family:Tahoma,돋움;}
+	.list_subject		{width:; word-break:break-all; padding-left:2px;}
+	.font_repcnt		{color:#278BE9; font-size:7pt; font-family:Tahoma,돋움;}
+	.list_name			{text-align:left; letter-spacing:-1; padding-left:2px;}
+	.list_date			{text-align:center; font-size:8pt; font-family:Tahoma,돋움; width:70px; padding:0 4px 0 2px;}
+	.list_hit				{text-align:center; font-size:8pt; font-family:Tahoma,돋움; color:#555555; width:30;}
+	.list_category	{text-align:center; letter-spacing:-1; padding:0 2px 0 1px;}
+	.list_other		{text-align:center;}
+	.list_wr_add		{padding-left:0px;line-height:110%;} /*입력란 추가 생성한 <td>*/
+	.list_hr_tr			{display:;}
+	.list_hr_line		{height:1; background-color:#F4f3f1; padding:0; }
+	.list_photo		{border:1px solid #f0f0f0; cursor:pointer; width:80;;}
+	.list_thumbnail	{border:2px solid #ddd; cursor:pointer; width:80;;}
+	.font8pt			{font-size:8pt; font-family:돋움; color:#666666;}
+	.page_number	{color:#444444; font-size:8pt; font-family:Tahoma,돋움; border:1px solid #dddddd; background-color:#ffffff; padding:0 2px 0 3px; margin:0 2px 0 2px;} /*글목록 페이지 번호*/
+	#opennumber{border-bottom:2px solid #F0C2A4;} /*본문출력 상태인 글제목엔 밑줄찍~*/
+	#mainbutton_td img{margin-right:7px;} /* 하단 메인버튼*/
+	.list_div {float:left;display:inline;width:100px;text-align:center;}
+</style>
+
+	<div style='text-align:center'>
+	 
+
+<div id='mainIndexDiv' style="width:90%; padding:0;margin:0 auto;">
+
+		<div style="text-align:right;">
+					</div>
+
+		<!-- ★ 글목록 Main -->
+		<table id='mainIndexTable' cellpadding=0  cellspacing=0 width='100%' border=0>
+			<tbody>
+			
+
+		<tr height="35px"  style="background:#ffd374;">
+	
+
+	<td class=list_no style="width:50px;" ><nobr>
+		5			</td>
+
+
+	<td class=list_subject>
+
+	<a onclick="SLB('/home/board.php?board=cast&config=6&category=6&search=%EC%9D%B4%EC%82%AC%EC%95%BC+19&shwhere=subject&command=body&no=15369&body_only=y&button_view=n','iframe', 1005, 600, 'true', 'false')" class=subjectColor> 2026/01/03(토) “이사야 19:16-25” / 작성: 김대순</a>
+	</td>
+
+
+	<td class=list_date>
+		<nobr>2026-01-02</nobr>
+	</td>
+
+
+	
+
+</tr>
+
+
+	<tr class=list_hr_tr style="height:10px;">
+		<td colspan="4" style="font-size:2px;"></td>
+	</tr>
+
+
+
+		<tr height="35px"  style="background:#b6d2b6;">
+	
+
+	<td class=list_no style="width:50px;" ><nobr>
+		4			</td>
+
+
+	<td class=list_subject>
+
+	<a onclick="SLB('/home/board.php?board=cast&config=6&category=6&search=%EC%9D%B4%EC%82%AC%EC%95%BC+19&shwhere=subject&command=body&no=15366&body_only=y&button_view=n','iframe', 1005, 600, 'true', 'false')" class=subjectColor> 2026/01/02(금) “이사야 19:1-15” / 작성: 이태선</a>
+	</td>
+
+
+	<td class=list_date>
+		<nobr>2025-12-31</nobr>
+	</td>
+
+
+	
+
+</tr>
+
+
+	<tr class=list_hr_tr style="height:10px;">
+		<td colspan="4" style="font-size:2px;"></td>
+	</tr>
+
+
+
+		<tr height="35px"  style="background:#ffd374;">
+	
+
+	<td class=list_no style="width:50px;" ><nobr>
+		3			</td>
+
+
+	<td class=list_subject>
+
+	<a onclick="SLB('/home/board.php?board=cast&config=6&category=6&search=%EC%9D%B4%EC%82%AC%EC%95%BC+19&shwhere=subject&command=body&no=10495&body_only=y&button_view=n','iframe', 1005, 600, 'true', 'false')" class=subjectColor> 2019/02/05(화) “이사야 19:1-25” / 작성: 김소리</a>
+	</td>
+
+
+	<td class=list_date>
+		<nobr>2019-02-04</nobr>
+	</td>
+
+
+	
+
+</tr>
+
+
+	<tr class=list_hr_tr style="height:10px;">
+		<td colspan="4" style="font-size:2px;"></td>
+	</tr>
+
+
+
+		<tr height="35px"  style="background:#b6d2b6;">
+	
+
+	<td class=list_no style="width:50px;" ><nobr>
+		2			</td>
+
+
+	<td class=list_subject>
+
+	<a onclick="SLB('/home/board.php?board=cast&config=6&category=6&search=%EC%9D%B4%EC%82%AC%EC%95%BC+19&shwhere=subject&command=body&no=7025&body_only=y&button_view=n','iframe', 1005, 600, 'true', 'false')" class=subjectColor> 2014/01/21(화) "이사야 19:1-25” / 작성: 장재령</a>
+	</td>
+
+
+	<td class=list_date>
+		<nobr>2014-01-21</nobr>
+	</td>
+
+
+	
+
+</tr>
+
+
+	<tr class=list_hr_tr style="height:10px;">
+		<td colspan="4" style="font-size:2px;"></td>
+	</tr>
+
+
+
+		<tr height="35px"  style="background:#ffd374;">
+	
+
+	<td class=list_no style="width:50px;" ><nobr>
+		1			</td>
+
+
+	<td class=list_subject>
+
+	<a onclick="SLB('/home/board.php?board=cast&config=6&category=6&search=%EC%9D%B4%EC%82%AC%EC%95%BC+19&shwhere=subject&command=body&no=4475&body_only=y&button_view=n','iframe', 1005, 600, 'true', 'false')" class=subjectColor> 2009/2/19/(목) "이사야 19&#58;1-25"/ 작성&#58; 김순식</a>
+	</td>
+
+
+	<td class=list_date>
+		<nobr>2009-02-18</nobr>
+	</td>
+
+
+	
+
+</tr>
+
+
+	<tr class=list_hr_tr style="height:10px;">
+		<td colspan="4" style="font-size:2px;"></td>
+	</tr>
+
+		</table>
+
+
+		<!-- ★ 글목록 하단-->
+		<table border=0 cellspacing=0 cellpadding=0 width='100%' style='margin-top:7px;'>
+			<tr>
+				<td id='mainbutton_td'>
+
+										
+				</td>
+				<td align=right valign=top>
+						<a href='/home/board.php?board=cast&config=6&category=6&search=%EC%9D%B4%EC%82%AC%EC%95%BC+19&shwhere=subject&no=&command=list&page=1&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270' class=page_number><font color=#ff5500>1</font></a> <!-- 페이지 번호 ..[1][2][3] -->
+				</td>
+			</tr>
+			<tr>
+				<td colspan=2 align=right>
+									</td>
+			</tr>
+		</table>
+
+		
+</div>
+
+		</div>
+
+
+<span id='TnTindexListMany' style='display:none'>5</span>                    </div>
+                    <div style="clear:both;"></div>
+                </div>
+                <!--오른쪽-->
+                <script language='javascript'>
+                $(document).ready(function() {
+                    $('.rbover').css('opacity', 0);
+                    $('.rbanb').hover(
+                        function() {
+                            $(this).find('.rbover').stop().fadeTo(450, 1);
+                        },
+                        function() {
+                            $(this).find('.rbover').stop().fadeTo(450, 0);
+                        }
+                    )
+                });
+                </script>
+
+                <style type='text/css'>
+                #rightban {
+                    float: left;
+                    display: inline;
+                    width: 123px;
+                    height: 555px;
+                                    }
+                
+                .rightban {
+                    margin-bottom:5px;
+                }
+
+                .rbanb {
+                    position: relative;
+                    cursor: pointer;
+                }
+
+                .rbover {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                }
+
+                .rbanmargin {
+                    margin-top: 4px;
+                }
+                </style>
+
+
+                <div id='rightban'>
+
+                    
+                    <div class="rightban">
+                        <a href="board.php?board=page&command=skin_insert&exe=sitemap&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270"><img src="./skin_board/100ch/b_img/site/right_2026_m_1.png"></a>
+                    </div>
+                    <div class="rightban">
+                        <a href='board.php?board=page&command=body&no=15&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270' onclick="window.open('http://100church.org/home/board.php?board=page&config=50&command=skin_insert&exe=schedule#rest', 'scd', 'toolbar=no, location=no, directories=no, status=no,scrollbars=no, resizable=yes,copyhistory=no,width=1100,height=850,left=0,top=0');return false;"><img src="./skin_board/100ch/b_img/site/right_2026_m_2.png"></a>
+                    </div>
+                    <div class="rightban">
+                        <a href="board.php?board=page&config=1&command=body&no=36&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270"><img src="./skin_board/100ch/b_img/site/right_2026_m_3.png"></a>
+                    </div>
+                    <div class="rightban">
+                        <a href="https://docs.google.com/forms/d/e/1FAIpQLSebHAMv-nYXWXkTCAt0We7ktfS-j67HuMhGXzE9jWu55k1TSw/viewform?usp=sf_link" target="_blank"><img src="./skin_board/100ch/b_img/site/right_2026_m_4.png"></a>
+                    </div>
+                    <div class="rightban">
+                        <a href="board.php?board=school&PHPSESSID=a4f9ca0f1044bb3c972f4800a4346270"><img src="./skin_board/100ch/b_img/site/right_2026_m_5.png"></a>
+                    </div>
+                    <div class="rightban">
+                        <a href="http://100church.dimode.co.kr/FindID/FindID.asp" onclick="alert('그동안 연말정산을 위해 헌금봉투 뒷면에 기재하던 주민등록번호 뒷자리는 주민번호 중복문제와 개인정보 보호로 인해 2014년 3월부로 사용을 중단합니다.\n대신 4월부터는 6자리로 구성된 본인의 교적번호(ID)를 헌금봉투 뒷면에 기재해주시기 바랍니다.');" target="_blank"><img src="./skin_board/100ch/b_img/site/right_2026_m_6_1.png"></a><br>
+                        <a href="https://100church.org/home/pages/donationguide/" onclick="window.open(this.href, 'popup', 'width=1000, height=700, scrollbars=yes'); return false;"><img src="./skin_board/100ch/b_img/site/right_2026_m_6_2.png"></a><br>
+                        <a href="http://100chcash.dimode.co.kr/" target="_blank"><img src="./skin_board/100ch/b_img/site/right_2026_m_6_3.png"></a>
+                    </div>
+                    <div class="rightban"><a href="http://www.100thcouncil.com/" target="_blank"><img src="./skin_board/100ch/b_img/site/right_2026_m_7.png"></a></div>
+                    <div class="rightban"><a href="http://www.yanghwajin.net/" target="_blank"><img src="./skin_board/100ch/b_img/site/right_2026_m_8.png"></a></div>
+                    <div class="rightban"><a href="http://www.martyr.or.kr/" target="_blank"><img src="./skin_board/100ch/b_img/site/right_2026_m_9.png"></a></div>
+                    <div class="rightban"><a href="https://yanghwajinarchives.org/s/site/page/main" target="_blank"><img src="./skin_board/100ch/b_img/site/right_2026_m_10.png"></a></div>
+                    <div class="rightban"><a href="http://www.yanghwajin.re.kr/" target="_blank"><img src="./skin_board/100ch/b_img/site/right_2026_m_11.png"></a></div>
+
+                    
+                </div>
+                <div class='cb'></div>
+                <!--오시는길-->
+                <div style="float:left;display:inline;margin-left:41px;"><a onclick="window.open('./skin_board/100ch/yakdo.php', 'ejfsje', 'toolbar=no, location=no, directories=no, status=no,scrollbars=yes, resizable=no,copyhistory=no,width=1020,height=1390,left=0,top=0');return false;" href="#"><img src="./skin_board/100ch/b_img/site/foot_left.gif" width='64px' height='25px' border=0></a><img src="./skin_board/100ch/b_img/site/foot_addr.gif" border=0>
+                    <!--<a onclick="alert('그동안 연말정산을 위해 헌금봉투 뒷면에 기재하던 주민등록번호 뒷자리는 주민번호 중복문제와 개인정보 보호로 인해 2014년 3월부로 사용을 중단합니다.\n대신 4월부터는 6자리로 구성된 본인의 교적번호(ID)를 헌금봉투 뒷면에 기재해주시기 바랍니다.');" href='http://100church.dimode.co.kr/FindID/FindID.asp' target=_blank ><img src="./skin_board/100ch/b_img/site/foot_searchid.gif" border=0 style='margin-left:10px;'></a><a href='http://100chdonate.dimode.co.kr ' target='_blank'><img src="./skin_board/100ch/b_img/site/foot_print.gif" border=0 style='margin-left:12px;'></a><a href='http://100chcash.dimode.co.kr/' target='_blank'><img src="./skin_board/100ch/b_img/site/foot_searchhg.gif?20150415" border=0 style='margin-left:10px;'></a>-->
+                </div>
+
+                <!--Copyright-->
+                <div style="float:right;display:inline;margin-top:2px;margin-right:23px;" onclick="location.href='board.php?board=page&command=member&exe=login_form&login_after_url=board.php%3Fboard%3Dpage%26command%3Dskin_insert%26exe%3Dhome'"><img src="./skin_board/100ch/b_img/site/foot_right_2026.gif?201811" border=0></div>
+                <div class='cb'></div>
+                </div>
+
+                </div>
+
+                
+
+                <!-- for galaxytab 10.1 -->
+                <div id='tempdiv' style="diplay:none;"></div>
+
+                <!-- 리포트2.0 로그분석코드 시작 -->
+                <script>
+                (function () {
+                  var s = document.createElement('script');
+                  s.src = 'https://church100.weblog.cafe24.com/weblog.js?uid=church100&uname=...';
+                  s.async = true;              // 분석/통계면 async 권장
+                  s.crossOrigin = 'anonymous'; // 필요 시
+                  document.head.appendChild(s);
+                })();
+                </script>
+                <!-- 리포트2.0  로그분석코드 완료 -->
+
+                
+
+
+    <script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a5d439a62b388dea',t:'MTc5NTE0Mzg0NA=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a5d439a62b388dea',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+
+    </html>
