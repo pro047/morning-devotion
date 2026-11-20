@@ -35,6 +35,23 @@ nonisolated struct DevotionDate: Comparable, Hashable, Sendable, CustomStringCon
     }
 }
 
+extension DevotionDate {
+    /// Persisted form, "YYYY/MM/DD" (same as `description`).
+    nonisolated var storageString: String { description }
+
+    /// Strict inverse of `storageString`: 4 digits "/" 2 digits "/" 2 digits.
+    nonisolated init?(storageString: String) {
+        let parts = storageString.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0].count == 4, parts[1].count == 2, parts[2].count == 2,
+              parts.allSatisfy({ $0.allSatisfy { $0.isASCII && $0.isNumber } }),
+              let y = Int(parts[0]), let m = Int(parts[1]), let d = Int(parts[2]),
+              (1...12).contains(m), (1...31).contains(d)
+        else { return nil }
+        self.init(year: y, month: m, day: d)
+    }
+}
+
 nonisolated struct Passage: Equatable, Sendable {
     let book: String
     let chapter: Int
@@ -49,6 +66,15 @@ nonisolated struct DevotionEntry: Equatable, Sendable {
     let passageText: String
     let passage: Passage?
     let author: String?
+    /// `no=<n>` of the list link. nil when parsed from a bare title.
+    var articleNo: Int? = nil
+}
+
+nonisolated struct DevotionArticle: Equatable, Sendable {
+    let titleEntry: DevotionEntry?
+    let passageText: String
+    let hymn: String?
+    let sermon: String
 }
 
 nonisolated struct ReadingProgress: Equatable, Sendable {

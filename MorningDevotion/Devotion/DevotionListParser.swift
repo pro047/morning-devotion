@@ -5,22 +5,51 @@
 
 import Foundation
 
+nonisolated struct DevotionListLink: Equatable, Sendable {
+    let title: String
+    let articleNo: Int?
+}
+
 nonisolated enum DevotionListParser {
     private static let titlePattern = try! NSRegularExpression(
         pattern: #"class=["']?subjectColor["']?[^>]*>([^<]*)"#
     )
 
-    static func extractTitles(fromHTML html: String) -> [String] {
+    private static let noPattern = try! NSRegularExpression(pattern: #"(?<=[?&;])no=(\d+)"#)
+
+    /// One element per subjectColor match, document order.
+    static func extractLinks(fromHTML html: String) -> [DevotionListLink] {
         let ns = html as NSString
         let matches = titlePattern.matches(in: html, range: NSRange(location: 0, length: ns.length))
         return matches.map { m in
-            decodeEntities(ns.substring(with: m.range(at: 1)))
+            let titleRange = m.range(at: 1)
+            let title = decodeEntities(ns.substring(with: titleRange))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // Opening tag = nearest "<" before the match, up to the ">" before the title.
+            let lt = ns.range(of: "<", options: .backwards, range: NSRange(location: 0, length: m.range.location))
+            let tagStart = lt.location == NSNotFound ? 0 : lt.location
+            let tag = ns.substring(with: NSRange(location: tagStart, length: titleRange.location - tagStart))
+
+            let tagNS = tag as NSString
+            var articleNo: Int?
+            if let nm = noPattern.firstMatch(in: tag, range: NSRange(location: 0, length: tagNS.length)) {
+                articleNo = Int(tagNS.substring(with: nm.range(at: 1)))
+            }
+            return DevotionListLink(title: title, articleNo: articleNo)
         }
     }
 
+    static func extractTitles(fromHTML html: String) -> [String] {
+        extractLinks(fromHTML: html).map(\.title)
+    }
+
     static func parseEntries(fromHTML html: String) -> [DevotionEntry] {
-        extractTitles(fromHTML: html).compactMap(DevotionTitleParser.parse)
+        extractLinks(fromHTML: html).compactMap { link in
+            guard var entry = DevotionTitleParser.parse(link.title) else { return nil }
+            entry.articleNo = link.articleNo
+            return entry
+        }
     }
 
     private static let named: [String: String] = [
@@ -28,7 +57,7 @@ nonisolated enum DevotionListParser {
     ]
 
     /// Single pass, so "&amp;#58;" decodes to "&#58;" and not further.
-    private static func decodeEntities(_ s: String) -> String {
+    static func decodeEntities(_ s: String) -> String {
         var out = ""
         var i = s.startIndex
         while i < s.endIndex {
