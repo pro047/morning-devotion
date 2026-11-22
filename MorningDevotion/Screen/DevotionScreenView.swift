@@ -8,10 +8,14 @@ import SwiftUI
 struct DevotionScreenView: View {
     let model: DevotionScreenModel
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         content
             .task { await model.load() }
+            .onChange(of: model.isFinished) { _, finished in
+                if finished { dismiss() }
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active {
                     Task { await model.refreshIfStale() }
@@ -26,8 +30,6 @@ struct DevotionScreenView: View {
             ProgressView()
         case .showing(let c):
             showing(c)
-        case .finishedToday, .noNextDevotion:
-            Text(model.state.message ?? "").padding()
         case .networkError:
             VStack(spacing: 16) {
                 Text(model.state.message ?? "")
@@ -41,15 +43,17 @@ struct DevotionScreenView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 videoArea(c.video)
-                Text(dateText(c.entry)).font(.headline)
-                Text(c.article.passageText).font(.title3)
+                Text(c.headerDate).font(.headline)
+                Text(c.headerPassage).font(.title3)
                 if let hymn = c.article.hymn {
                     Text(hymn)
                 }
                 Text(c.article.sermon)
-                Button("다 봤어요") { model.markSeen() }
-                    .buttonStyle(.borderedProminent)
-                    .frame(maxWidth: .infinity)
+                if model.showsFinishButton {
+                    Button("다 봤어요") { model.markSeen() }
+                        .buttonStyle(.borderedProminent)
+                        .frame(maxWidth: .infinity)
+                }
             }
             .padding()
         }
@@ -63,12 +67,5 @@ struct DevotionScreenView: View {
         } else if let message = slot.message {
             Text(message).foregroundStyle(.secondary)
         }
-    }
-
-    private func dateText(_ entry: DevotionEntry) -> String {
-        if let weekday = entry.weekday {
-            return "\(entry.date.description)(\(weekday))"
-        }
-        return entry.date.description
     }
 }
