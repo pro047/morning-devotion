@@ -15,6 +15,7 @@ final class DevotionScreenModel {
     private(set) var entry: DevotionEntry
     private(set) var isMoving: Bool = false
     private(set) var notice: String?
+    private(set) var feedback: MoveFeedback?
 
     /// Read on every access so it follows both the shown entry and the stored progress.
     var isRead: Bool { store.storedProgress().isRead(entry.date, for: testament) }
@@ -43,25 +44,26 @@ final class DevotionScreenModel {
 
     func load() async {
         state = .loading
+        state = await buildState(for: entry)
+    }
 
+    /// Fetches the article and video slot for `entry` without touching `state`.
+    private func buildState(for entry: DevotionEntry) async -> DevotionScreenState {
         guard let no = entry.articleNo, let url = DevotionArticleURL.url(articleNo: no) else {
-            state = .networkError
-            return
+            return .networkError
         }
         let html: String
         do {
             html = try await fetcher.fetchHTML(from: url)
         } catch {
-            state = .networkError
-            return
+            return .networkError
         }
         guard let article = DevotionArticleParser.parse(html: html) else {
-            state = .networkError
-            return
+            return .networkError
         }
 
         let slot = await videoSlot(for: entry, articleHTML: html)
-        state = .showing(DevotionScreenContent(testament: testament, entry: entry, article: article, video: slot))
+        return .showing(DevotionScreenContent(testament: testament, entry: entry, article: article, video: slot))
     }
 
     func retry() async {
@@ -84,14 +86,26 @@ final class DevotionScreenModel {
         isMoving = true
         notice = nil
         let outcome = await AdjacentDevotionSearch.move(direction, from: entry.date, using: fetcher)
-        isMoving = false
         switch outcome {
         case .moved(let next):
+            // Keep isMoving true and the current state until the new content is built.
+            let built = await buildState(for: next)
             entry = next
-            await load()
+            state = built
+            isMoving = false
+            var succeeded = false
+            if case .showing = built { succeeded = true }
+            recordFeedback(direction, succeeded: succeeded)
         case .notFound, .networkError:
+            isMoving = false
             notice = AdjacentDevotionSearch.message(for: outcome, direction: direction)
+            recordFeedback(direction, succeeded: false)
         }
+    }
+
+    private func recordFeedback(_ direction: MoveDirection, succeeded: Bool) {
+        let serial = (feedback?.serial ?? 0) + 1
+        feedback = MoveFeedback(serial: serial, direction: direction, succeeded: succeeded)
     }
 
     func refreshIfStale() async {

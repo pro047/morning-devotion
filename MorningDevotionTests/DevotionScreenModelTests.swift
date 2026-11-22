@@ -1088,6 +1088,183 @@ struct DevotionScreenModelTests {
         #expect(model.isMoving == false)
         #expect(model.entry.date == Self.date(2025, 9, 11))
     }
+
+    // MARK: - AC-79 / AC-80 feedback and swap-after-build (F-5 US-4, FR-8)
+
+    // AC-79 (FR-8): feedback is nil until an attempt finishes; success / failure; serial increments; ignored moves leave it
+    @Test func ac79_feedbackPerAttempt() async throws {
+        // success
+        do {
+            let env = try Env(2026, 11, 22, 7)
+            defer { env.cleanup() }
+            let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                                  homepage: try Self.moveHomepage(), youtube: try Self.youtube0713())
+            #expect(model.feedback == nil)
+            await model.move(.previous)   // ignored while .loading
+            #expect(model.feedback == nil)
+            await model.load()
+            #expect(model.feedback == nil)
+
+            await model.move(.previous)   // 09/12 → 09/11
+            #expect(model.entry.date == Self.date(2025, 9, 11))
+            #expect(model.feedback == MoveFeedback(serial: 1, direction: .previous, succeeded: true))
+
+            await model.move(.next)       // 09/11 → 09/12
+            #expect(model.entry.date == Self.date(2025, 9, 12))
+            #expect(model.feedback == MoveFeedback(serial: 2, direction: .next, succeeded: true))
+        }
+        // failure, then serial 2, then finished → unchanged
+        do {
+            let env = try Env(2026, 11, 22, 7)
+            defer { env.cleanup() }
+            let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            #expect(model.feedback == nil)
+
+            await model.move(.next)
+            #expect(model.notice == "다음 묵상을 찾지 못했습니다")
+            #expect(model.feedback == MoveFeedback(serial: 1, direction: .next, succeeded: false))
+
+            await model.move(.previous)
+            #expect(model.notice == "이전 묵상을 찾지 못했습니다")
+            #expect(model.feedback == MoveFeedback(serial: 2, direction: .previous, succeeded: false))
+
+            model.markSeen()
+            #expect(model.isFinished == true)
+            await model.move(.next)
+            await model.move(.previous)
+            #expect(model.feedback == MoveFeedback(serial: 2, direction: .previous, succeeded: false))
+        }
+    }
+
+    // AC-79: network error on the search is a failed attempt
+    @Test func ac79_feedbackOnSearchNetworkError() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        await homepage.setSearch("2025/09/12", .failure(URLError(.notConnectedToInternet)))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.move(.next)
+        #expect(model.notice == "인터넷 연결을 확인해 주세요")
+        #expect(model.feedback == MoveFeedback(serial: 1, direction: .next, succeeded: false))
+    }
+
+    // AC-80 ([결정] 4): while the found entry's article loads, the current entry, state and locks stay
+    @Test func ac80_swapsOnlyAfterNewContentIsBuilt() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let gate = ArticleGatedHomepage(inner: try Self.moveHomepage())
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        let shown = model.state
+        #expect(Self.content(shown)?.entry.date == Self.date(2025, 9, 12))
+        let finishBefore = model.showsFinishButton
+        #expect(finishBefore == true)
+        await gate.close()
+
+        let task = Task { await model.move(.previous) }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)   // search 09/11 done, article 15155 parked
+
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(model.state == shown)
+        #expect(model.isMoving == true)
+        #expect(model.showsFinishButton == finishBefore)
+        #expect(model.notice == nil)
+        #expect(model.feedback == nil)
+
+        // locks: markSeen and a second move are ignored while the article loads
+        let count = await gate.count
+        model.markSeen()
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+        #expect(model.isFinished == false)
+        await model.move(.next)
+        await model.move(.previous)
+        #expect(await gate.count == count)
+
+        await gate.open()
+        await task.value
+
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        let c = try #require(Self.content(model.state))
+        #expect(c.entry.articleNo == 15155)
+        #expect(c.entry.date == Self.date(2025, 9, 11))
+        #expect(model.isMoving == false)
+        #expect(model.notice == nil)
+        #expect(model.feedback == MoveFeedback(serial: 1, direction: .previous, succeeded: true))
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+    }
+
+    // AC-80 failure path: found entry, article fails → entry is the found one, state .networkError, failed feedback
+    @Test func ac80_articleFailureAfterFoundEntry() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        await homepage.setArticle(15155, .failure(URLError(.notConnectedToInternet)))
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(Self.content(model.state)?.entry.date == Self.date(2025, 9, 12))
+
+        await model.move(.previous)
+
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        #expect(model.state == .networkError)
+        #expect(model.isMoving == false)
+        #expect(model.feedback?.succeeded == false)
+        #expect(model.feedback == MoveFeedback(serial: 1, direction: .previous, succeeded: false))
+        #expect(Self.describe(await homepage.requested) == ["no=15157", "search=2025/09/11", "no=15155"])
+        Self.expectStoreUntouched(env)
+
+        // from .networkError the screen can still move (F-4 AC-68) and recover
+        await homepage.setArticle(15155, .html(try Self.html("cast-body-15155")))
+        await model.move(.next)   // 09/11 → 09/12
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(Self.content(model.state)?.entry.articleNo == 15157)
+        #expect(model.feedback == MoveFeedback(serial: 2, direction: .next, succeeded: true))
+    }
+}
+
+/// Wraps a fetcher; while closed, article (`no=`) requests suspend until `open()`. Search requests pass through.
+private actor ArticleGatedHomepage: DevotionHTMLFetching {
+    private let inner: any DevotionHTMLFetching
+    private var closed = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    private(set) var count = 0
+
+    init(inner: any DevotionHTMLFetching) { self.inner = inner }
+
+    var waitingCount: Int { waiting.count }
+
+    func close() { closed = true }
+
+    func open() {
+        closed = false
+        let pending = waiting
+        waiting = []
+        pending.forEach { $0.resume() }
+    }
+
+    private func park(_ c: CheckedContinuation<Void, Never>) { waiting.append(c) }
+
+    func fetchHTML(from url: URL) async throws -> String {
+        count += 1
+        let isArticle = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.contains(where: { $0.name == "no" }) ?? false
+        if closed && isArticle {
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                self.park(c)
+            }
+        }
+        return try await inner.fetchHTML(from: url)
+    }
 }
 
 /// Wraps a fetcher; while closed, search requests suspend until `open()`. Article requests pass through.

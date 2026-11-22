@@ -25,6 +25,9 @@ final class MainScreenModel {
     private var newNotice: String?
     private var oldMoving = false
     private var newMoving = false
+    private var oldFeedback: MoveFeedback?
+    private var newFeedback: MoveFeedback?
+    private var feedbackSerial = 0
 
     init(
         store: ReadingProgressStore,
@@ -123,8 +126,71 @@ final class MainScreenModel {
         case .moved(let entry):
             let isRead = store.storedProgress().isRead(entry.date, for: testament)
             setRow(.ready(MainRowContent(testament: testament, entry: entry, isRead: isRead)), for: testament)
+            recordFeedback(direction, succeeded: true, for: testament)
         case .notFound, .networkError:
             setNotice(AdjacentDevotionSearch.message(for: outcome, direction: direction), for: testament)
+            recordFeedback(direction, succeeded: false, for: testament)
+        }
+    }
+
+    /// Single entry point for arrows and swipes.
+    func navigate(_ testament: Testament, _ direction: MoveDirection) async {
+        switch row(for: testament) {
+        case .ready:
+            await move(testament, direction)
+        case .noNextDevotion:
+            if direction == .previous {
+                await revealLastSeen(testament)
+            }
+        case .loading, .networkError:
+            break
+        }
+    }
+
+    /// Latest finished attempt for that row (nil until the first one).
+    func feedback(for testament: Testament) -> MoveFeedback? {
+        switch testament {
+        case .oldTestament: return oldFeedback
+        case .newTestament: return newFeedback
+        }
+    }
+
+    /// Shows the entry on the stored progress date for a row that has no next entry.
+    private func revealLastSeen(_ testament: Testament) async {
+        guard case .noNextDevotion = row(for: testament), !isMoving(testament) else { return }
+        setMoving(true, for: testament)
+        setNotice(nil, for: testament)
+        let date = store.storedProgress().lastSeen(for: testament)
+        let outcome: Result<DevotionEntry?, Error>
+        do {
+            outcome = .success(try await SeenDevotionSearch.find(on: date, using: fetcher))
+        } catch {
+            outcome = .failure(error)
+        }
+        setMoving(false, for: testament)
+
+        // Drop the result if load/retry replaced the row while the search ran.
+        guard case .noNextDevotion = row(for: testament) else { return }
+        switch outcome {
+        case .success(let entry?):
+            let isRead = store.storedProgress().isRead(entry.date, for: testament)
+            setRow(.ready(MainRowContent(testament: testament, entry: entry, isRead: isRead)), for: testament)
+            recordFeedback(.previous, succeeded: true, for: testament)
+        case .success(nil):
+            setNotice(AdjacentDevotionSearch.message(for: .notFound, direction: .previous), for: testament)
+            recordFeedback(.previous, succeeded: false, for: testament)
+        case .failure:
+            setNotice(AdjacentDevotionSearch.message(for: .networkError, direction: .previous), for: testament)
+            recordFeedback(.previous, succeeded: false, for: testament)
+        }
+    }
+
+    private func recordFeedback(_ direction: MoveDirection, succeeded: Bool, for testament: Testament) {
+        feedbackSerial += 1
+        let value = MoveFeedback(serial: feedbackSerial, direction: direction, succeeded: succeeded)
+        switch testament {
+        case .oldTestament: oldFeedback = value
+        case .newTestament: newFeedback = value
         }
     }
 

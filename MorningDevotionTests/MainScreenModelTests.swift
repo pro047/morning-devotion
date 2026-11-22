@@ -989,6 +989,460 @@ struct MainScreenModelTests {
         #expect(old.entry.date == Self.date(2025, 9, 12))
         #expect(env.rawSnapshot() == [nil, nil, nil, nil])
     }
+
+    // MARK: - AC-72 … AC-78 navigate entry point (F-5 US-1, US-5, FR-1·6·8·10)
+
+    /// AC-73 env: 2026-11-22 07:00, lastSeenOld 2025/09/11 written directly.
+    private static func noNextEnv() throws -> Env {
+        let env = try Env(2026, 11, 22, 7)
+        env.defaults.set("2025/09/11", forKey: "readingProgress.lastSeenOld")
+        return env
+    }
+
+    /// AC-73 homepage: standardHomepage with 2025/09/12 emptied (09/13 … unregistered → 0-entry page).
+    private static func noNextHomepage() async throws -> FakeHomepage {
+        let homepage = try standardHomepage()
+        await homepage.setSearch("2025/09/12", .html(try emptyPage()))
+        return homepage
+    }
+
+    // AC-72: on a .ready row navigate gives the same result as move (AC-56 / AC-58 expectations)
+    @Test func ac72_navigateOnReadyRowMoves() async throws {
+        let (env, homepage, model) = try await Self.movedSetup()
+        defer { env.cleanup() }
+        #expect(Self.content(model.oldRow)?.entry.date == Self.date(2025, 9, 15))
+        let newBefore = model.newRow
+        let snapshot = env.rawSnapshot()
+        #expect(snapshot == ["2025/09/12", nil, nil, nil])
+
+        var before = await homepage.requested.count
+        await model.navigate(.oldTestament, .previous)
+
+        var old = try #require(Self.content(model.oldRow))
+        #expect(old.testament == .oldTestament)
+        #expect(old.title == Self.oldTitle0912)
+        #expect(old.entry.articleNo == 15157)
+        #expect(old.isRead == true)
+        #expect(await Self.since(homepage, before) == ["search=2025/09/14", "search=2025/09/13", "search=2025/09/12"])
+        #expect(model.newRow == newBefore)
+        #expect(env.rawSnapshot() == snapshot)
+        #expect(model.isMoving(.oldTestament) == false)
+        #expect(model.notice(for: .oldTestament) == nil)
+
+        before = await homepage.requested.count
+        await model.navigate(.oldTestament, .next)
+
+        old = try #require(Self.content(model.oldRow))
+        #expect(old.entry.date == Self.date(2025, 9, 15))
+        #expect(old.entry.articleNo == 15160)
+        #expect(old.isRead == false)
+        #expect(await Self.since(homepage, before) == ["search=2025/09/13", "search=2025/09/14", "search=2025/09/15"])
+        #expect(model.newRow == newBefore)
+        #expect(env.rawSnapshot() == snapshot)
+    }
+
+    // AC-72: navigate failure on a .ready row sets the same notice as move (row kept)
+    @Test func ac72_navigateOnReadyRowFailureSetsNotice() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.standardHomepage()
+        let model = env.model(homepage: homepage, youtube: try Self.youtube())
+        await model.load()
+        let row0911 = model.oldRow
+        #expect(Self.content(row0911)?.title == Self.oldTitle0911)
+
+        let before = await homepage.requested.count
+        await model.navigate(.oldTestament, .previous)   // 09/10 … 09/04 empty
+
+        #expect(model.oldRow == row0911)
+        #expect(model.notice(for: .oldTestament) == "이전 묵상을 찾지 못했습니다")
+        #expect(await Self.since(homepage, before) == [
+            "search=2025/09/10", "search=2025/09/09", "search=2025/09/08", "search=2025/09/07",
+            "search=2025/09/06", "search=2025/09/05", "search=2025/09/04",
+        ])
+        #expect(model.notice(for: .newTestament) == nil)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+    }
+
+    // AC-73 (US-5, FR-10): .noNextDevotion row ‹ → the entry on the stored progress date, shown read
+    @Test func ac73_noNextPreviousRevealsProgressEntry() async throws {
+        let env = try Self.noNextEnv()
+        defer { env.cleanup() }
+        let homepage = try await Self.noNextHomepage()
+        let model = env.model(homepage: homepage, youtube: try Self.youtube())
+        await model.load()
+        #expect(model.oldRow == .noNextDevotion)
+        #expect(env.rawSnapshot() == ["2025/09/11", nil, nil, nil])
+        let newBefore = model.newRow
+        #expect(Self.content(newBefore) != nil)
+        let before = await homepage.requested.count
+
+        await model.navigate(.oldTestament, .previous)
+
+        let old = try #require(Self.content(model.oldRow))
+        #expect(old.testament == .oldTestament)
+        #expect(old.title == Self.oldTitle0911)
+        #expect(old.entry.date == Self.date(2025, 9, 11))
+        #expect(old.entry.articleNo == 15155)
+        #expect(old.isRead == true)
+        #expect(await Self.since(homepage, before) == ["search=2025/09/11"])
+        #expect(model.notice(for: .oldTestament) == nil)
+        #expect(model.notice(for: .newTestament) == nil)
+        #expect(model.isMoving(.oldTestament) == false)
+        #expect(model.isMoving(.newTestament) == false)
+        #expect(model.newRow == newBefore)
+        #expect(env.rawSnapshot() == ["2025/09/11", nil, nil, nil])
+
+        let screen = try #require(model.makeScreenModel(for: .oldTestament))
+        #expect(screen.entry.date == Self.date(2025, 9, 11))
+        #expect(screen.entry.articleNo == 15155)
+        #expect(screen.isRead == true)
+        #expect(screen.showsFinishButton == false)
+
+        // Same-day return keeps the revealed entry (basis == stored progress), no requests.
+        let beforeReturn = await homepage.requested.count
+        let revealed = model.oldRow
+        await model.refreshOnReturn()
+        #expect(model.oldRow == revealed)
+        #expect(model.newRow == newBefore)
+        #expect(await homepage.requested.count == beforeReturn)
+        #expect(env.rawSnapshot() == ["2025/09/11", nil, nil, nil])
+    }
+
+    // AC-73 boundary: after the reveal, a progress change (different lastSeen) reloads the row from progress
+    @Test func ac73_revealedRowReloadsWhenProgressChanges() async throws {
+        let env = try Self.noNextEnv()
+        defer { env.cleanup() }
+        let homepage = try await Self.noNextHomepage()
+        let model = env.model(homepage: homepage, youtube: try Self.youtube())
+        await model.load()
+        await model.navigate(.oldTestament, .previous)
+        #expect(Self.content(model.oldRow)?.entry.date == Self.date(2025, 9, 11))
+
+        env.defaults.set("2025/09/10", forKey: "readingProgress.lastSeenOld")
+        let before = await homepage.requested.count
+        await model.refreshOnReturn()
+
+        // lastSeen 09/10 → next search starts at 09/11 (proverbs-23) → 09/11 unread
+        let old = try #require(Self.content(model.oldRow))
+        #expect(old.entry.date == Self.date(2025, 9, 11))
+        #expect(old.isRead == false)
+        #expect(await Self.since(homepage, before) == ["search=2025/09/11"])
+    }
+
+    // AC-74: after the reveal, ‹ / › are F-4 moves (±7 days from the revealed entry)
+    @Test func ac74_movesAfterReveal() async throws {
+        let env = try Self.noNextEnv()
+        defer { env.cleanup() }
+        let homepage = try await Self.noNextHomepage()
+        let model = env.model(homepage: homepage, youtube: try Self.youtube())
+        await model.load()
+        await model.navigate(.oldTestament, .previous)
+        let revealed = model.oldRow
+        #expect(Self.content(revealed)?.entry.date == Self.date(2025, 9, 11))
+
+        var before = await homepage.requested.count
+        await model.navigate(.oldTestament, .previous)
+        #expect(await Self.since(homepage, before) == [
+            "search=2025/09/10", "search=2025/09/09", "search=2025/09/08", "search=2025/09/07",
+            "search=2025/09/06", "search=2025/09/05", "search=2025/09/04",
+        ])
+        #expect(model.oldRow == revealed)
+        #expect(model.notice(for: .oldTestament) == "이전 묵상을 찾지 못했습니다")
+        #expect(model.isMoving(.oldTestament) == false)
+
+        before = await homepage.requested.count
+        await model.navigate(.oldTestament, .next)
+        #expect(await Self.since(homepage, before) == [
+            "search=2025/09/12", "search=2025/09/13", "search=2025/09/14", "search=2025/09/15",
+            "search=2025/09/16", "search=2025/09/17", "search=2025/09/18",
+        ])
+        #expect(model.oldRow == revealed)
+        #expect(model.notice(for: .oldTestament) == "다음 묵상을 찾지 못했습니다")
+        #expect(model.isMoving(.oldTestament) == false)
+        #expect(env.rawSnapshot() == ["2025/09/11", nil, nil, nil])
+    }
+
+    // AC-75 (US-5 기준 3): reveal not found / network error keeps .noNextDevotion with the F-4 "이전" message
+    @Test func ac75_noNextPreviousFailureKeepsRow() async throws {
+        let env = try Self.noNextEnv()
+        defer { env.cleanup() }
+        let homepage = try await Self.noNextHomepage()
+        await homepage.setSearch("2025/09/11", .html(try Self.emptyPage()))
+        let model = env.model(homepage: homepage, youtube: try Self.youtube())
+        await model.load()
+        #expect(model.oldRow == .noNextDevotion)
+        let newBefore = model.newRow
+
+        var before = await homepage.requested.count
+        await model.navigate(.oldTestament, .previous)
+        #expect(model.oldRow == .noNextDevotion)
+        #expect(model.notice(for: .oldTestament) == "이전 묵상을 찾지 못했습니다")
+        #expect(await Self.since(homepage, before) == ["search=2025/09/11"])
+        #expect(model.isMoving(.oldTestament) == false)
+        #expect(model.notice(for: .newTestament) == nil)
+        #expect(model.newRow == newBefore)
+        #expect(env.rawSnapshot() == ["2025/09/11", nil, nil, nil])
+        #expect(model.makeScreenModel(for: .oldTestament) == nil)
+
+        await homepage.setSearch("2025/09/11", .failure(URLError(.notConnectedToInternet)))
+        before = await homepage.requested.count
+        await model.navigate(.oldTestament, .previous)
+        #expect(model.oldRow == .noNextDevotion)
+        #expect(model.notice(for: .oldTestament) == "인터넷 연결을 확인해 주세요")
+        #expect(await Self.since(homepage, before) == ["search=2025/09/11"])
+        #expect(model.isMoving(.oldTestament) == false)
+        #expect(model.notice(for: .newTestament) == nil)
+        #expect(model.newRow == newBefore)
+        #expect(env.rawSnapshot() == ["2025/09/11", nil, nil, nil])
+
+        // a later successful reveal clears the notice
+        await homepage.setSearch("2025/09/11", .html(try Self.html("cast-search-proverbs-23")))
+        await model.navigate(.oldTestament, .previous)
+        #expect(Self.content(model.oldRow)?.entry.articleNo == 15155)
+        #expect(model.notice(for: .oldTestament) == nil)
+    }
+
+    // AC-75 boundary: the reveal searches the new testament's own progress date
+    @Test func ac75_revealUsesOwnTestamentProgress() async throws {
+        let env = try Env(2026, 11, 22, 13)
+        defer { env.cleanup() }
+        env.defaults.set("2020/07/13", forKey: "readingProgress.lastSeenNew")
+        let homepage = try Self.standardHomepage()
+        await homepage.setSearch("2020/07/14", .html(try Self.emptyPage()))
+        let model = env.model(homepage: homepage, youtube: try Self.youtube())
+        await model.load()
+        #expect(model.newRow == .noNextDevotion)
+        let oldBefore = model.oldRow
+        let before = await homepage.requested.count
+
+        await model.navigate(.newTestament, .previous)
+
+        let new = try #require(Self.content(model.newRow))
+        #expect(new.testament == .newTestament)
+        #expect(new.title == Self.newTitle0713)
+        #expect(new.entry.articleNo == 11480)
+        #expect(new.isRead == true)
+        #expect(await Self.since(homepage, before) == ["search=2020/07/13"])
+        #expect(model.oldRow == oldBefore)
+        #expect(env.rawSnapshot() == [nil, "2020/07/13", nil, nil])
+    }
+
+    // AC-76: navigate is a no-op for .noNextDevotion + next, .loading, .networkError
+    @Test func ac76_navigateIgnoredCases() async throws {
+        // (a) .noNextDevotion + .next
+        do {
+            let env = try Self.noNextEnv()
+            defer { env.cleanup() }
+            let homepage = try await Self.noNextHomepage()
+            let model = env.model(homepage: homepage, youtube: try Self.youtube())
+            await model.load()
+            #expect(model.oldRow == .noNextDevotion)
+            let count = await homepage.requested.count
+            await model.navigate(.oldTestament, .next)
+            #expect(await homepage.requested.count == count)
+            #expect(model.oldRow == .noNextDevotion)
+            #expect(model.notice(for: .oldTestament) == nil)
+            #expect(model.isMoving(.oldTestament) == false)
+            #expect(model.feedback(for: .oldTestament) == nil)
+            #expect(model.feedback(for: .newTestament) == nil)
+            #expect(env.rawSnapshot() == ["2025/09/11", nil, nil, nil])
+        }
+        // (b) .loading (before load), both directions, both rows
+        do {
+            let env = try Env(2026, 11, 22, 7)
+            defer { env.cleanup() }
+            let homepage = try Self.standardHomepage()
+            let model = env.model(homepage: homepage, youtube: try Self.youtube())
+            await model.navigate(.oldTestament, .previous)
+            await model.navigate(.oldTestament, .next)
+            await model.navigate(.newTestament, .previous)
+            await model.navigate(.newTestament, .next)
+            #expect(await homepage.requested.count == 0)
+            #expect(model.oldRow == .loading)
+            #expect(model.newRow == .loading)
+            #expect(model.notice(for: .oldTestament) == nil)
+            #expect(model.notice(for: .newTestament) == nil)
+            #expect(model.feedback(for: .oldTestament) == nil)
+            #expect(model.feedback(for: .newTestament) == nil)
+        }
+        // (c) .networkError (new row, 2020/07/12 fails), both directions
+        do {
+            let env = try Env(2026, 11, 22, 7)
+            defer { env.cleanup() }
+            let homepage = try Self.standardHomepage()
+            await homepage.setSearch("2020/07/12", .failure(URLError(.notConnectedToInternet)))
+            let model = env.model(homepage: homepage, youtube: try Self.youtube())
+            await model.load()
+            #expect(model.newRow == .networkError)
+            let count = await homepage.requested.count
+            await model.navigate(.newTestament, .previous)
+            await model.navigate(.newTestament, .next)
+            #expect(await homepage.requested.count == count)
+            #expect(model.newRow == .networkError)
+            #expect(model.notice(for: .newTestament) == nil)
+            #expect(model.isMoving(.newTestament) == false)
+            #expect(model.feedback(for: .newTestament) == nil)
+            #expect(model.feedback(for: .oldTestament) == nil)
+        }
+    }
+
+    // AC-77: while the reveal search runs, that row is moving and further navigate calls are ignored
+    @Test func ac77_revealInFlightBlocksNavigate() async throws {
+        let env = try Self.noNextEnv()
+        defer { env.cleanup() }
+        let gate = GatedHomepage(inner: try await Self.noNextHomepage())
+        let model = env.model(homepage: gate, youtube: try Self.youtube())
+        await model.load()
+        #expect(model.oldRow == .noNextDevotion)
+        await gate.close()
+
+        let task = Task { await model.navigate(.oldTestament, .previous) }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)
+        #expect(model.isMoving(.oldTestament) == true)
+        #expect(model.isMoving(.newTestament) == false)
+        #expect(model.oldRow == .noNextDevotion)
+        let count = await gate.count
+
+        await model.navigate(.oldTestament, .previous)
+        await model.navigate(.oldTestament, .next)
+        #expect(await gate.count == count)
+
+        await gate.open()
+        await task.value
+        #expect(model.isMoving(.oldTestament) == false)
+        let old = try #require(Self.content(model.oldRow))
+        #expect(old.entry.date == Self.date(2025, 9, 11))
+        #expect(old.isRead == true)
+        #expect(env.rawSnapshot() == ["2025/09/11", nil, nil, nil])
+    }
+
+    // AC-77 boundary: a retry that replaces the row during the reveal search drops the reveal result
+    @Test func ac77_revealResultDroppedWhenRowReplaced() async throws {
+        let env = try Self.noNextEnv()
+        defer { env.cleanup() }
+        let inner = try await Self.noNextHomepage()
+        let gate = GatedHomepage(inner: inner)
+        let model = env.model(homepage: gate, youtube: try Self.youtube())
+        await model.load()
+        #expect(model.oldRow == .noNextDevotion)
+        await gate.close()
+
+        let task = Task { await model.navigate(.oldTestament, .previous) }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)
+
+        // Progress moves back to 09/10 and the row is reloaded while the reveal waits.
+        // Both searches park before the gate opens, so either completion order ends with the reveal dropped.
+        env.defaults.set("2025/09/10", forKey: "readingProgress.lastSeenOld")
+        let reload = Task { await model.retry(.oldTestament) }   // lastSeen 09/10 → 09/11 unread
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 1 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 2)
+        #expect(model.oldRow == .loading)
+        await gate.open()
+        await reload.value
+        await task.value
+
+        let old = try #require(Self.content(model.oldRow))
+        #expect(old.entry.date == Self.date(2025, 9, 11))
+        #expect(old.isRead == false)
+        #expect(model.isMoving(.oldTestament) == false)
+        #expect(model.feedback(for: .oldTestament) == nil)
+    }
+
+    // AC-78 (FR-8): feedback per row, one shared serial starting at 1, success/failure recorded
+    @Test func ac78_feedbackPerRowAndSerial() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.standardHomepage()
+        let model = env.model(homepage: homepage, youtube: try Self.youtube())
+        #expect(model.feedback(for: .oldTestament) == nil)
+        #expect(model.feedback(for: .newTestament) == nil)
+        await model.load()
+        #expect(model.feedback(for: .oldTestament) == nil)
+        #expect(model.feedback(for: .newTestament) == nil)
+
+        await model.navigate(.newTestament, .next)   // 07/13 → 07/14
+        #expect(Self.content(model.newRow)?.entry.date == Self.date(2020, 7, 14))
+        #expect(model.feedback(for: .newTestament) == MoveFeedback(serial: 1, direction: .next, succeeded: true))
+        #expect(model.feedback(for: .oldTestament) == nil)
+
+        await model.navigate(.oldTestament, .previous)   // 09/10 … 09/04 empty
+        #expect(model.feedback(for: .oldTestament) == MoveFeedback(serial: 2, direction: .previous, succeeded: false))
+        #expect(model.feedback(for: .newTestament) == MoveFeedback(serial: 1, direction: .next, succeeded: true))
+
+        // same result again → new serial (a new trigger value)
+        await model.navigate(.oldTestament, .previous)
+        #expect(model.feedback(for: .oldTestament) == MoveFeedback(serial: 3, direction: .previous, succeeded: false))
+
+        // move itself also records (navigate delegates; direct callers get feedback too)
+        await model.move(.newTestament, .previous)   // 07/14 → 07/13
+        #expect(Self.content(model.newRow)?.entry.date == Self.date(2020, 7, 13))
+        #expect(model.feedback(for: .newTestament) == MoveFeedback(serial: 4, direction: .previous, succeeded: true))
+        #expect(model.feedback(for: .oldTestament) == MoveFeedback(serial: 3, direction: .previous, succeeded: false))
+    }
+
+    // AC-78: network error on a move is a failed attempt
+    @Test func ac78_feedbackOnNetworkError() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.standardHomepage()
+        await homepage.setSearch("2025/09/12", .failure(URLError(.notConnectedToInternet)))
+        let model = env.model(homepage: homepage, youtube: try Self.youtube())
+        await model.load()
+        await model.navigate(.oldTestament, .next)
+        #expect(model.notice(for: .oldTestament) == "인터넷 연결을 확인해 주세요")
+        #expect(model.feedback(for: .oldTestament) == MoveFeedback(serial: 1, direction: .next, succeeded: false))
+    }
+
+    // AC-78: reveal success / failure feedback; ignored navigate (AC-76) leaves it unchanged
+    @Test func ac78_feedbackOnReveal() async throws {
+        // success (AC-73)
+        do {
+            let env = try Self.noNextEnv()
+            defer { env.cleanup() }
+            let homepage = try await Self.noNextHomepage()
+            let model = env.model(homepage: homepage, youtube: try Self.youtube())
+            await model.load()
+            await model.navigate(.oldTestament, .previous)
+            #expect(model.feedback(for: .oldTestament) == MoveFeedback(serial: 1, direction: .previous, succeeded: true))
+            #expect(model.feedback(for: .newTestament) == nil)
+        }
+        // failure (AC-75): not found, then network error, then ignored .next
+        do {
+            let env = try Self.noNextEnv()
+            defer { env.cleanup() }
+            let homepage = try await Self.noNextHomepage()
+            await homepage.setSearch("2025/09/11", .html(try Self.emptyPage()))
+            let model = env.model(homepage: homepage, youtube: try Self.youtube())
+            await model.load()
+            await model.navigate(.oldTestament, .previous)
+            #expect(model.feedback(for: .oldTestament) == MoveFeedback(serial: 1, direction: .previous, succeeded: false))
+
+            await homepage.setSearch("2025/09/11", .failure(URLError(.notConnectedToInternet)))
+            await model.navigate(.oldTestament, .previous)
+            #expect(model.feedback(for: .oldTestament) == MoveFeedback(serial: 2, direction: .previous, succeeded: false))
+
+            await model.navigate(.oldTestament, .next)   // ignored on .noNextDevotion
+            #expect(model.feedback(for: .oldTestament) == MoveFeedback(serial: 2, direction: .previous, succeeded: false))
+            #expect(model.feedback(for: .newTestament) == nil)
+        }
+    }
 }
 
 /// Wraps a fetcher; while closed, search requests suspend until `open()`. Article requests pass through.

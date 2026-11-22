@@ -12,16 +12,10 @@ struct DevotionScreenView: View {
 
     var body: some View {
         content
-            .toolbar {
-                ToolbarItemGroup(placement: .bottomBar) {
-                    Button("이전") { Task { await model.move(.previous) } }
-                        .disabled(navigationDisabled)
-                    if model.isMoving {
-                        ProgressView()
-                    }
-                    Button("다음") { Task { await model.move(.next) } }
-                        .disabled(navigationDisabled)
-                }
+            .safeAreaInset(edge: .bottom) { navigationCapsule }
+            .sensoryFeedback(trigger: model.feedback) { _, new in
+                guard let new else { return nil }
+                return new.succeeded ? .impact(weight: .light) : .warning
             }
             .task { await model.load() }
             .onChange(of: model.isFinished) { _, finished in
@@ -39,6 +33,37 @@ struct DevotionScreenView: View {
         return model.isMoving
     }
 
+    private var navigationCapsule: some View {
+        HStack(spacing: 8) {
+            capsuleArrow(.previous)
+            Group {
+                if model.isMoving {
+                    ProgressView()
+                } else {
+                    Circle().fill(.secondary).frame(width: 6, height: 6)
+                }
+            }
+            .frame(width: 24)
+            capsuleArrow(.next)
+        }
+        .padding(.horizontal, 4)
+        .glassEffect(.regular.interactive(), in: Capsule())
+        .padding(.bottom, 8)
+    }
+
+    private func capsuleArrow(_ direction: MoveDirection) -> some View {
+        Button {
+            Task { await model.move(direction) }
+        } label: {
+            Image(systemName: direction.symbolName)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(direction.accessibilityLabel)
+        .disabled(navigationDisabled)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch model.state {
@@ -46,6 +71,9 @@ struct DevotionScreenView: View {
             ProgressView()
         case .showing(let c):
             showing(c)
+                .id(c.entry.date)
+                .transition(.push(from: model.feedback?.direction == .previous ? .leading : .trailing))
+                .animation(.snappy, value: model.entry.date)
         case .networkError:
             VStack(spacing: 16) {
                 noticeText
@@ -69,30 +97,52 @@ struct DevotionScreenView: View {
                         BadgeLabel(text: "읽음", tint: .green)
                     }
                 }
-                Text(c.headerPassage)
-                    .font(Theme.passageFont)
-                    .foregroundStyle(Theme.ink)
-                if let hymn = c.article.hymn {
-                    Text(hymn)
-                        .font(.callout)
-                        .foregroundStyle(Theme.ink.opacity(0.8))
-                }
-                Divider()
-                Text(c.article.sermon)
-                    .font(Theme.sermonFont)
-                    .lineSpacing(Theme.sermonLineSpacing)
-                    .foregroundStyle(Theme.ink)
-                if model.showsFinishButton {
-                    Button("다 봤어요") { model.markSeen() }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.large)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 8)
-                }
+                textArea(c)
             }
             .padding()
         }
         .background(Theme.paper.ignoresSafeArea())
+    }
+
+    /// Passage, hymn, sermon and finish button; the swipe is only taken here, not over the video.
+    private func textArea(_ c: DevotionScreenContent) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(c.headerPassage)
+                .font(Theme.passageFont)
+                .foregroundStyle(Theme.ink)
+            if let hymn = c.article.hymn {
+                Text(hymn)
+                    .font(.callout)
+                    .foregroundStyle(Theme.ink.opacity(0.8))
+            }
+            Divider()
+            Text(c.article.sermon)
+                .font(Theme.sermonFont)
+                .lineSpacing(Theme.sermonLineSpacing)
+                .foregroundStyle(Theme.ink)
+            if model.showsFinishButton {
+                Button("다 봤어요") { model.markSeen() }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20, coordinateSpace: .global).onEnded { v in
+                let direction = SwipeRules.direction(
+                    dx: v.translation.width,
+                    dy: v.translation.height,
+                    startX: v.startLocation.x,
+                    excludesLeadingEdge: true
+                )
+                if let direction {
+                    Task { await model.move(direction) }
+                }
+            }
+        )
     }
 
     @ViewBuilder

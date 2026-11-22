@@ -38,6 +38,23 @@ enum Theme {
     }
 }
 
+/// 44x44 circular Liquid Glass arrow.
+struct GlassArrowButton: View {
+    let direction: MoveDirection
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: direction.symbolName)
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel(direction.accessibilityLabel)
+    }
+}
+
 /// Small capsule label such as "지금" or "읽음".
 struct BadgeLabel: View {
     let text: String

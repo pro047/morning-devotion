@@ -279,4 +279,32 @@ struct MainScreenStateTests {
             "2025/09/11", "2025/09/12", "2025/09/13", "2025/09/14", "2025/09/15", "2025/09/16", "2025/09/17",
         ])
     }
+
+    // MARK: - AC-70 arrows per row (US-1, US-5, FR-10)
+
+    // AC-70: .ready → both, .noNextDevotion → previous only, .loading / .networkError → none
+    @Test func ac70_arrowsPerRow() {
+        #expect(MainRowRules.arrows(for: Self.readyRow(isRead: false)) == .both)
+        #expect(MainRowRules.arrows(for: Self.readyRow(isRead: true)) == .both)
+        #expect(MainRowRules.arrows(for: .noNextDevotion) == .previousOnly)
+        #expect(MainRowRules.arrows(for: .loading) == NavArrows.none)
+        #expect(MainRowRules.arrows(for: .networkError) == NavArrows.none)
+    }
+
+    // AC-70: NavArrows constants and allows(_:)
+    @Test func ac70_navArrowsAllows() {
+        #expect(NavArrows.previousOnly.allows(.previous) == true)
+        #expect(NavArrows.previousOnly.allows(.next) == false)
+        #expect(NavArrows.none.allows(.previous) == false)
+        #expect(NavArrows.none.allows(.next) == false)
+        #expect(NavArrows.both.allows(.previous) == true)
+        #expect(NavArrows.both.allows(.next) == true)
+
+        #expect(NavArrows.none == NavArrows(previous: false, next: false))
+        #expect(NavArrows.both == NavArrows(previous: true, next: true))
+        #expect(NavArrows.previousOnly == NavArrows(previous: true, next: false))
+        #expect(NavArrows.previousOnly != NavArrows.both)
+        #expect(NavArrows(previous: false, next: true).allows(.next) == true)
+        #expect(NavArrows(previous: false, next: true).allows(.previous) == false)
+    }
 }

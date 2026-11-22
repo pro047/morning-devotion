@@ -50,6 +50,15 @@ nonisolated enum MainRowRules {
         return .ready(MainRowContent(testament: content.testament, entry: content.entry, isRead: isRead))
     }
 
+    /// .ready -> both, .noNextDevotion -> previous only, otherwise none.
+    static func arrows(for row: MainRowState) -> NavArrows {
+        switch row {
+        case .ready: return .both
+        case .noNextDevotion: return .previousOnly
+        case .loading, .networkError: return .none
+        }
+    }
+
     enum ReturnAction: Equatable, Sendable {
         case keep(MainRowState)
         case reload
