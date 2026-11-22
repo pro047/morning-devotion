@@ -104,15 +104,19 @@ private final class Env {
         clock.now = try #require(calendar.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min)))
     }
 
-    /// "New instance": fresh UserDefaults and store on the same suite name.
-    func reopen() throws {
-        defaults = try #require(UserDefaults(suiteName: suiteName))
-        store = ReadingProgressStore(defaults: defaults)
-    }
-
-    func model(homepage: FakeHomepage, youtube: FakeYouTube, apiKey: String? = "k") -> DevotionScreenModel {
+    func model(
+        testament: Testament,
+        entry: DevotionEntry,
+        mode: DevotionScreenMode = .next,
+        homepage: FakeHomepage,
+        youtube: FakeYouTube,
+        apiKey: String? = "k"
+    ) -> DevotionScreenModel {
         let clock = self.clock
         return DevotionScreenModel(
+            testament: testament,
+            entry: entry,
+            mode: mode,
             store: store,
             fetcher: homepage,
             searcher: youtube,
@@ -174,37 +178,58 @@ struct DevotionScreenModelTests {
         }
     }
 
-    private static func searchValues(_ urls: [URL]) -> [String] {
-        describe(urls).filter { $0.hasPrefix("search=") }.map { String($0.dropFirst("search=".count)) }
+    /// First entry on `date` in the parsed list fixture `name`.
+    private static func listEntry(_ name: String, _ date: DevotionDate) throws -> DevotionEntry {
+        let entries = DevotionListParser.parseEntries(fromHTML: try html(name))
+        return try #require(entries.first(where: { $0.date == date }))
     }
 
-    /// 1번 조건 homepage: search 2025/09/11 → proverbs-23, article 15155 → body-15155.
-    private static func homepage1() throws -> FakeHomepage {
-        FakeHomepage(
-            search: ["2025/09/11": .html(try html("cast-search-proverbs-23"))],
-            article: [15155: .html(try html("cast-body-15155"))],
-            defaultSearch: try emptyPage())
+    /// Old 2025/09/11 #15155 (from cast-search-proverbs-23).
+    private static func oldEntry() throws -> DevotionEntry {
+        let e = try listEntry("cast-search-proverbs-23", date(2025, 9, 11))
+        #expect(e.articleNo == 15155)
+        return e
     }
 
-    /// 2번 조건 homepage: 2020/07/12 → 0 entries, 2020/07/13 → john-5, article 11480 → body-11480.
-    private static func homepage2() throws -> FakeHomepage {
-        FakeHomepage(
-            search: [
-                "2020/07/12": .html(try emptyPage()),
-                "2020/07/13": .html(try html("cast-search-john-5")),
-            ],
-            article: [11480: .html(try html("cast-body-11480"))],
-            defaultSearch: try emptyPage())
+    /// New 2020/07/13 #11480 (from cast-search-john-5).
+    private static func newEntry() throws -> DevotionEntry {
+        let e = try listEntry("cast-search-john-5", date(2020, 7, 13))
+        #expect(e.articleNo == 11480)
+        return e
+    }
+
+    /// Article 15155 → body-15155 only. Any `search=` request would hit the 0-entry page.
+    private static func oldHomepage() throws -> FakeHomepage {
+        FakeHomepage(article: [15155: .html(try html("cast-body-15155"))], defaultSearch: try emptyPage())
+    }
+
+    /// Article 11480 → body-11480 only.
+    private static func newHomepage() throws -> FakeHomepage {
+        FakeHomepage(article: [11480: .html(try html("cast-body-11480"))], defaultSearch: try emptyPage())
     }
 
     private static func youtube0713() throws -> FakeYouTube {
         FakeYouTube(.data(try json("yt-search-20200713")))
     }
 
-    /// Expected AC-1 content (old testament 2025/09/11, video from the article embed).
-    private static func expectCondition1(_ state: DevotionScreenState, video: VideoSlot = .video(id: "PR9GK_S83NU")) throws {
+    private static func oldModel(_ env: Env, mode: DevotionScreenMode = .next,
+                                 homepage: FakeHomepage, youtube: FakeYouTube, apiKey: String? = "k") throws -> DevotionScreenModel {
+        env.model(testament: .oldTestament, entry: try oldEntry(), mode: mode,
+                  homepage: homepage, youtube: youtube, apiKey: apiKey)
+    }
+
+    private static func newModel(_ env: Env, mode: DevotionScreenMode = .next,
+                                 homepage: FakeHomepage, youtube: FakeYouTube, apiKey: String? = "k") throws -> DevotionScreenModel {
+        env.model(testament: .newTestament, entry: try newEntry(), mode: mode,
+                  homepage: homepage, youtube: youtube, apiKey: apiKey)
+    }
+
+    /// Expected old content (2025/09/11, video from the article embed).
+    private static func expectOld(_ state: DevotionScreenState, video: VideoSlot = .video(id: "PR9GK_S83NU")) throws {
         let c = try #require(content(state))
         #expect(c.testament == .oldTestament)
+        let expectedEntry = try oldEntry()
+        #expect(c.entry == expectedEntry)
         #expect(c.entry.date == date(2025, 9, 11))
         #expect(c.entry.weekday == "목")
         #expect(c.entry.passageText == "잠언 23:24-35")
@@ -216,10 +241,12 @@ struct DevotionScreenModelTests {
         #expect(c.video == video)
     }
 
-    /// Expected AC-2 content (new testament 2020/07/13), video slot given.
-    private static func expectCondition2(_ state: DevotionScreenState, video: VideoSlot = .video(id: "M5VtIg1WAic")) throws {
+    /// Expected new content (2020/07/13), video slot given.
+    private static func expectNew(_ state: DevotionScreenState, video: VideoSlot = .video(id: "M5VtIg1WAic")) throws {
         let c = try #require(content(state))
         #expect(c.testament == .newTestament)
+        let expectedEntry = try newEntry()
+        #expect(c.entry == expectedEntry)
         #expect(c.entry.date == date(2020, 7, 13))
         #expect(c.entry.weekday == "월")
         #expect(c.entry.passageText == "요한복음 5:30-47")
@@ -229,7 +256,7 @@ struct DevotionScreenModelTests {
         #expect(c.video == video)
     }
 
-    /// §5-0 "저장값 전부 그대로" on an empty store: all four raw keys absent, API values are defaults / nil.
+    /// "저장값 전부 그대로" on an empty store: all four raw keys absent, API values are defaults / nil.
     private static func expectStoreUntouched(_ env: Env) {
         #expect(env.rawSnapshot() == [nil, nil, nil, nil])
         #expect(env.store.storedProgress() == ReadingProgressStore.defaultProgress)
@@ -237,563 +264,420 @@ struct DevotionScreenModelTests {
         #expect(env.store.finishedDay(for: .newTestament) == nil)
     }
 
-    // MARK: - AC-1 / AC-2 first open
+    // MARK: - AC-13 load from the given entry (M4 AC-1 / AC-2 rewritten)
 
-    // AC-1: morning, empty store → old 2025/09/11 with the article's embed video, no YouTube search
-    @Test func ac1_morningShowsOldTestamentWithArticleVideo() async throws {
+    // AC-13 (결정 1, M4 AC-1): old entry → article only (no list search), embed video, no YouTube
+    @Test func ac13_oldEntryLoadsArticleOnly() async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
-        let homepage = try Self.homepage1()
+        let homepage = try Self.oldHomepage()
         let youtube = try Self.youtube0713()
-        let model = env.model(homepage: homepage, youtube: youtube)
+        let model = try Self.oldModel(env, homepage: homepage, youtube: youtube)
 
         #expect(model.state == .loading)
+        #expect(model.testament == .oldTestament)
+        #expect(model.mode == .next)
         await model.load()
 
-        try Self.expectCondition1(model.state)
+        try Self.expectOld(model.state)
+        #expect(model.state.message == nil)
         #expect(await youtube.requested.count == 0)
         let requested = await homepage.requested
-        #expect(Self.describe(requested) == ["search=2025/09/11", "no=15155"])
+        #expect(Self.describe(requested) == ["no=15155"])
         #expect(requested.last == DevotionArticleURL.url(articleNo: 15155))
-        #expect(model.state.message == nil)
+        Self.expectStoreUntouched(env)
     }
 
-    // AC-2: afternoon, empty store → new 2020/07/13 via 2 searches, video from one YouTube search
-    @Test func ac2_afternoonShowsNewTestamentWithSearchedVideo() async throws {
+    // AC-13 (M4 AC-2): new entry → article 11480 + one YouTube search
+    @Test func ac13_newEntryLoadsArticleAndSearchesVideo() async throws {
         let env = try Env(2026, 11, 20, 13)
         defer { env.cleanup() }
-        let homepage = try Self.homepage2()
+        let homepage = try Self.newHomepage()
         let youtube = try Self.youtube0713()
-        let model = env.model(homepage: homepage, youtube: youtube)
+        let model = try Self.newModel(env, homepage: homepage, youtube: youtube)
 
         await model.load()
 
-        try Self.expectCondition2(model.state)
-        let requested = await homepage.requested
-        #expect(Self.searchValues(requested) == ["2020/07/12", "2020/07/13"])
-        #expect(Self.describe(requested) == ["search=2020/07/12", "search=2020/07/13", "no=11480"])
+        try Self.expectNew(model.state)
+        #expect(Self.describe(await homepage.requested) == ["no=11480"])
         #expect(await youtube.requested.count == 1)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
     }
 
-    // AC-2 boundary: load() does not write anything on the success path either
-    @Test func ac2_loadDoesNotWriteStore() async throws {
+    // AC-13 boundary: the testament comes from init, not the clock (old entry opened at 13:00)
+    @Test func ac13_testamentIgnoresClock() async throws {
         let env = try Env(2026, 11, 20, 13)
         defer { env.cleanup() }
-        let model = env.model(homepage: try Self.homepage2(), youtube: try Self.youtube0713())
+        let homepage = try Self.oldHomepage()
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+
+        await model.load()
+
+        try Self.expectOld(model.state)
+        #expect(Self.describe(await homepage.requested) == ["no=15155"])
+    }
+
+    // AC-13 (M4 ac2_loadDoesNotWriteStore): load() does not write anything on the success path
+    @Test func ac13_loadDoesNotWriteStore() async throws {
+        let env = try Env(2026, 11, 20, 13)
+        defer { env.cleanup() }
+        let model = try Self.newModel(env, homepage: try Self.newHomepage(), youtube: try Self.youtube0713())
         await model.load()
         #expect(env.rawSnapshot() == [nil, nil, nil, nil])
     }
 
-    // MARK: - AC-3 / AC-4 / AC-5 / AC-6 "다 봤어요"
+    // MARK: - AC-15 / AC-16 / AC-17 "다 봤어요"
 
-    // AC-3: markSeen records the devotion date and today's finished day for that testament only
-    @Test func ac3_markSeenRecordsProgressAndFinishedDay() async throws {
+    // AC-15 (FR-9, M4 AC-3): markSeen records progress + finished day, stays .showing, isFinished
+    @Test func ac15_markSeenRecordsAndFinishes() async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
-        let model = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
         await model.load()
-        try Self.expectCondition1(model.state)
+        try Self.expectOld(model.state)
+        let shown = model.state
 
         model.markSeen()
 
-        #expect(env.defaults.string(forKey: "readingProgress.finishedDayOld") == "2026/11/20")
-        #expect(env.defaults.object(forKey: "readingProgress.finishedDayNew") == nil)
+        // second slot = new default written by ReadingProgressStore.markSeen's internal load()
+        #expect(env.rawSnapshot() == ["2025/09/11", "2020/07/11", "2026/11/20", nil])
+        #expect(env.store.storedProgress().lastSeenNew == Self.date(2020, 7, 11))
         #expect(env.store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 20))
         #expect(env.store.finishedDay(for: .newTestament) == nil)
-        #expect(model.state == .finishedToday(.oldTestament))
-        #expect(model.state.message == "오늘 구약 묵상을 마쳤습니다")
-        #expect(env.store.load().lastSeenOld == Self.date(2025, 9, 11))
-        #expect(env.store.load().lastSeenNew == Self.date(2020, 7, 11))
+        #expect(model.isFinished == true)
+        #expect(model.state == shown)
+        #expect(model.state.message == nil)
+        #expect(model.showsFinishButton == false)
     }
 
-    // AC-3 boundary: testament follows the shown devotion, finished day follows the moment of pressing
-    // (opened 11:58 as old testament, pressed at 12:01 → old is finished)
-    @Test func ac3_markSeenAcrossNoonKeepsShownTestament() async throws {
+    // AC-16 (M4 AC-3 boundary): opened 11:58 as old, pressed at 12:01 → old is finished, new untouched
+    @Test func ac16_markSeenAcrossNoonKeepsShownTestament() async throws {
         let env = try Env(2026, 11, 20, 11, 58)
         defer { env.cleanup() }
-        let model = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
         await model.load()
-        try Self.expectCondition1(model.state)
+        try Self.expectOld(model.state)
 
         try env.setTime(2026, 11, 20, 12, 1)
         model.markSeen()
 
-        #expect(model.state == .finishedToday(.oldTestament))
-        #expect(env.store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 20))
-        #expect(env.store.finishedDay(for: .newTestament) == nil)
+        #expect(env.defaults.string(forKey: "readingProgress.finishedDayOld") == "2026/11/20")
+        #expect(env.defaults.object(forKey: "readingProgress.finishedDayNew") == nil)
         #expect(env.store.storedProgress().lastSeenOld == Self.date(2025, 9, 11))
         #expect(env.store.storedProgress().lastSeenNew == Self.date(2020, 7, 11))
+        #expect(model.isFinished == true)
     }
 
-    // AC-3 boundary: finished day is the press moment's local day (pressed after midnight → next day)
-    @Test func ac3_markSeenAfterMidnightUsesPressDay() async throws {
+    // AC-16 (M4 AC-3 boundary): finished day is the press moment's local day (after midnight → next day)
+    @Test func ac16_markSeenAfterMidnightUsesPressDay() async throws {
         let env = try Env(2026, 11, 20, 23, 50)
         defer { env.cleanup() }
-        // 23:50 is new testament; give it the 2번 조건 responses.
-        let model = env.model(homepage: try Self.homepage2(), youtube: try Self.youtube0713())
+        let model = try Self.newModel(env, homepage: try Self.newHomepage(), youtube: try Self.youtube0713())
         await model.load()
-        try Self.expectCondition2(model.state)
+        try Self.expectNew(model.state)
 
         try env.setTime(2026, 11, 21, 0, 10)
         model.markSeen()
 
-        #expect(model.state == .finishedToday(.newTestament))
+        #expect(env.defaults.string(forKey: "readingProgress.finishedDayNew") == "2026/11/21")
+        #expect(env.defaults.string(forKey: "readingProgress.lastSeenNew") == "2020/07/13")
+        #expect(env.defaults.object(forKey: "readingProgress.finishedDayOld") == nil)
         #expect(env.store.finishedDay(for: .newTestament) == Self.date(2026, 11, 21))
         #expect(env.store.storedProgress().lastSeenNew == Self.date(2020, 7, 13))
     }
 
-    // AC-3 / AC-24 boundary: a second markSeen in .finishedToday changes nothing
-    @Test func ac3_secondMarkSeenIsNoOp() async throws {
+    // AC-17 (M4 AC-3 / AC-24): a second markSeen (next day's clock) changes nothing
+    @Test func ac17_secondMarkSeenIsNoOp() async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
-        let model = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
         await model.load()
         model.markSeen()
         let snapshot = env.rawSnapshot()
+        let state = model.state
 
         try env.setTime(2026, 11, 21, 7)
         model.markSeen()
 
-        #expect(model.state == .finishedToday(.oldTestament))
         #expect(env.rawSnapshot() == snapshot)
         #expect(env.store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 20))
+        #expect(model.isFinished == true)
+        #expect(model.state == state)
     }
 
-    // AC-4: reopened store, same day 11:59 → finished message without any network request
-    @Test func ac4_finishedTodayBlocksSameTestamentSameDay() async throws {
+    // AC-17 (M4 AC-24): markSeen while .loading does nothing
+    @Test func ac17_markSeenWhileLoadingIsNoOp() throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
-        let first = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
-        await first.load()
-        first.markSeen()
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
 
-        try env.reopen()
-        try env.setTime(2026, 11, 20, 11, 59)
-        let homepage = try Self.homepage1()
+        model.markSeen()
+
+        #expect(model.state == .loading)
+        #expect(model.isFinished == false)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+    }
+
+    // AC-17 (M4 AC-24 boundary): markSeen in .networkError does nothing
+    @Test func ac17_markSeenWhenNetworkErrorIsNoOp() async throws {
+        let env = try Env(2026, 11, 20, 7)
+        defer { env.cleanup() }
+        let homepage = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                    defaultSearch: try Self.emptyPage())
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.state == .networkError)
+
+        model.markSeen()
+
+        #expect(model.state == .networkError)
+        #expect(model.isFinished == false)
+        Self.expectStoreUntouched(env)
+    }
+
+    // MARK: - AC-18 refreshIfStale
+
+    // AC-18 (PRD :34, M4 AC-21 ①): crossing noon does not switch or reload the open screen
+    @Test func ac18_refreshAcrossNoonIsNoOp() async throws {
+        let env = try Env(2026, 11, 20, 11, 58)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
         let youtube = try Self.youtube0713()
-        let model = env.model(homepage: homepage, youtube: youtube)
+        let model = try Self.oldModel(env, homepage: homepage, youtube: youtube)
         await model.load()
+        let before = model.state
+        let count = await homepage.requested.count
 
-        #expect(model.state == .finishedToday(.oldTestament))
-        #expect(model.state.message == "오늘 구약 묵상을 마쳤습니다")
-        #expect(await homepage.requested.count == 0)
-        #expect(await youtube.requested.count == 0)
-    }
+        try env.setTime(2026, 11, 20, 12, 1)
+        await model.refreshIfStale()
 
-    // AC-5: old finished today does not block the afternoon new testament
-    @Test func ac5_afternoonAfterOldFinishedShowsNew() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let first = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
-        await first.load()
-        first.markSeen()
+        #expect(model.state == before)
+        #expect(model.testament == .oldTestament)
+        #expect(Self.content(model.state)?.testament == .oldTestament)
+        #expect(await homepage.requested.count == count)
 
-        try env.reopen()
-        try env.setTime(2026, 11, 20, 12, 0)
-        let model = env.model(homepage: try Self.homepage2(), youtube: try Self.youtube0713())
-        await model.load()
-
-        try Self.expectCondition2(model.state)
-    }
-
-    // AC-6: next morning → search continues from the recorded 2025/09/11 and requests article 15157
-    @Test func ac6_nextMorningShowsFollowingDevotion() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let first = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
-        await first.load()
-        first.markSeen()
-
-        try env.reopen()
         try env.setTime(2026, 11, 21, 7)
-        let homepage = FakeHomepage(
-            search: ["2025/09/12": .html(try Self.html("cast-search-date-20250912"))],
-            // No cast-body-15157 fixture exists; 15155 stands in (only the request URL is asserted).
-            article: [15157: .html(try Self.html("cast-body-15155"))],
-            defaultSearch: try Self.emptyPage())
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-        await model.load()
+        await model.refreshIfStale()
 
-        let c = try #require(Self.content(model.state))
-        #expect(c.testament == .oldTestament)
-        #expect(c.entry.date == Self.date(2025, 9, 12))
-        #expect(c.entry.weekday == "금")
-        #expect(c.entry.passageText == "잠언 24:1-10")
-        #expect(c.entry.articleNo == 15157)
-        let requested = await homepage.requested
-        #expect(Self.searchValues(requested) == ["2025/09/12"])
-        #expect(requested.last == DevotionArticleURL.url(articleNo: 15157))
-        #expect(requested.count == 2)
-    }
-
-    // MARK: - AC-7 reopening without "다 봤어요"
-
-    // AC-7: no markSeen → a new instance shows the same devotion again
-    @Test func ac7_withoutMarkSeenSameDevotionAgain() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let first = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
-        await first.load()
-        let c1 = try #require(Self.content(first.state))
-
-        try env.reopen()
-        let model = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
-        await model.load()
-
-        let c2 = try #require(Self.content(model.state))
-        #expect(c2 == c1)
-        try Self.expectCondition1(model.state)
-    }
-
-    // MARK: - AC-8 / AC-9 / AC-19 failure paths
-
-    // AC-8: list fetch network error → whole-screen error, store untouched; retry after recovery shows AC-1
-    @Test func ac8_networkErrorThenRetry() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = FakeHomepage(
-            search: ["2025/09/11": .failure(URLError(.notConnectedToInternet))],
-            article: [15155: .html(try Self.html("cast-body-15155"))],
-            defaultSearch: try Self.emptyPage())
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-
-        await model.load()
-        #expect(model.state == .networkError)
-        #expect(model.state.message == "인터넷 연결을 확인해 주세요")
-        Self.expectStoreUntouched(env)
-
-        await homepage.setSearch("2025/09/11", .html(try Self.html("cast-search-proverbs-23")))
-        await model.retry()
-        try Self.expectCondition1(model.state)
-    }
-
-    // AC-8 boundary: a garbage stored lastSeen is not rewritten on the failure path (raw value kept)
-    @Test func ac8_networkErrorKeepsGarbageRawValue() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        env.defaults.set("garbage", forKey: "readingProgress.lastSeenOld")
-        let before = env.rawSnapshot()
-        let homepage = FakeHomepage(
-            search: ["2025/09/11": .failure(URLError(.notConnectedToInternet))],
-            defaultSearch: try Self.emptyPage())
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-
-        await model.load()
-
-        #expect(model.state == .networkError)
-        #expect(env.rawSnapshot() == before)
-        #expect(env.defaults.string(forKey: "readingProgress.lastSeenOld") == "garbage")
-        // garbage → default 2025/09/10 is used, so the first search is 2025/09/11
-        #expect(Self.searchValues(await homepage.requested) == ["2025/09/11"])
-    }
-
-    // AC-9: seven empty days → "not found", 7 searches 09/11…09/17, no article request, store untouched
-    @Test func ac9_noNextDevotionAfterSevenDays() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = FakeHomepage(defaultSearch: try Self.emptyPage())
-        let youtube = try Self.youtube0713()
-        let model = env.model(homepage: homepage, youtube: youtube)
-
-        await model.load()
-
-        #expect(model.state == .noNextDevotion)
-        #expect(model.state.message == "다음 묵상을 찾지 못했습니다")
-        let requested = await homepage.requested
-        #expect(Self.searchValues(requested) == [
-            "2025/09/11", "2025/09/12", "2025/09/13", "2025/09/14", "2025/09/15", "2025/09/16", "2025/09/17",
-        ])
-        #expect(requested.count == 7)
+        #expect(model.state == before)
+        #expect(await homepage.requested.count == count)
         #expect(await youtube.requested.count == 0)
-        Self.expectStoreUntouched(env)
     }
 
-    // AC-19: article fetched but unparseable → whole-screen network error, store untouched
+    // AC-18 boundary: refresh after "다 봤어요" (same / next day) does nothing either
+    @Test func ac18_refreshAfterFinishIsNoOp() async throws {
+        let env = try Env(2026, 11, 20, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        model.markSeen()
+        let state = model.state
+        let count = await homepage.requested.count
+
+        try env.setTime(2026, 11, 21, 7)
+        await model.refreshIfStale()
+
+        #expect(model.state == state)
+        #expect(model.isFinished == true)
+        #expect(await homepage.requested.count == count)
+    }
+
+    // AC-18 (M4 AC-21 boundary): refresh while still .loading (never loaded) does nothing
+    @Test func ac18_refreshWhileLoadingIsNoOp() async throws {
+        let env = try Env(2026, 11, 20, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+
+        await model.refreshIfStale()
+
+        #expect(model.state == .loading)
+        #expect(await homepage.requested.count == 0)
+    }
+
+    // AC-18 (M4 AC-21 ③): network error → refresh retries
+    @Test func ac18_refreshAfterNetworkErrorRetries() async throws {
+        let env = try Env(2026, 11, 20, 7)
+        defer { env.cleanup() }
+        let homepage = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                    defaultSearch: try Self.emptyPage())
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.state == .networkError)
+
+        await homepage.setArticle(15155, .html(try Self.html("cast-body-15155")))
+        await model.refreshIfStale()
+
+        try Self.expectOld(model.state)
+    }
+
+    // MARK: - AC-19 article failures
+
+    // AC-19 (M4 AC-19): unparseable article → network error, no YouTube, store untouched; retry recovers
     @Test func ac19_unparseableArticleIsNetworkError() async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
-        let homepage = FakeHomepage(
-            search: ["2025/09/11": .html(try Self.html("cast-search-proverbs-23"))],
-            article: [15155: .html("<html></html>")],
-            defaultSearch: try Self.emptyPage())
+        let homepage = FakeHomepage(article: [15155: .html("<html></html>")], defaultSearch: try Self.emptyPage())
         let youtube = try Self.youtube0713()
-        let model = env.model(homepage: homepage, youtube: youtube)
+        let model = try Self.oldModel(env, homepage: homepage, youtube: youtube)
+
+        await model.load()
+
+        #expect(model.state == .networkError)
+        #expect(model.state.message == "인터넷 연결을 확인해 주세요")
+        #expect(await youtube.requested.count == 0)
+        Self.expectStoreUntouched(env)
+
+        await homepage.setArticle(15155, .html(try Self.html("cast-body-15155")))
+        await model.retry()
+        try Self.expectOld(model.state)
+    }
+
+    // AC-19 (M4 AC-8 / AC-19): article fetch throws → network error; retry recovers
+    @Test func ac19_articleFetchErrorIsNetworkError() async throws {
+        let env = try Env(2026, 11, 20, 7)
+        defer { env.cleanup() }
+        let homepage = FakeHomepage(article: [15155: .failure(URLError(.timedOut))], defaultSearch: try Self.emptyPage())
+        let youtube = try Self.youtube0713()
+        let model = try Self.oldModel(env, homepage: homepage, youtube: youtube)
 
         await model.load()
 
         #expect(model.state == .networkError)
         #expect(await youtube.requested.count == 0)
         Self.expectStoreUntouched(env)
+
+        await homepage.setArticle(15155, .html(try Self.html("cast-body-15155")))
+        await model.retry()
+        try Self.expectOld(model.state)
+        #expect(Self.describe(await homepage.requested) == ["no=15155", "no=15155"])
     }
 
-    // AC-19: article fetch throws → whole-screen network error, store untouched
-    @Test func ac19_articleFetchErrorIsNetworkError() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = FakeHomepage(
-            search: ["2025/09/11": .html(try Self.html("cast-search-proverbs-23"))],
-            article: [15155: .failure(URLError(.timedOut))],
-            defaultSearch: try Self.emptyPage())
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-
-        await model.load()
-
-        #expect(model.state == .networkError)
-        Self.expectStoreUntouched(env)
-    }
-
-    // AC-19 boundary: HTTP error on the article (badStatus) is also a whole-screen network error
+    // AC-19 boundary: HTTP error (badStatus) on the article is also a network error; retry recovers
     @Test func ac19_articleBadStatusIsNetworkError() async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
-        let homepage = FakeHomepage(
-            search: ["2025/09/11": .html(try Self.html("cast-search-proverbs-23"))],
-            article: [15155: .failure(DevotionLoadError.badStatus(500))],
-            defaultSearch: try Self.emptyPage())
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
+        let homepage = FakeHomepage(article: [15155: .failure(DevotionLoadError.badStatus(500))],
+                                    defaultSearch: try Self.emptyPage())
+        let youtube = try Self.youtube0713()
+        let model = try Self.oldModel(env, homepage: homepage, youtube: youtube)
 
         await model.load()
 
         #expect(model.state == .networkError)
+        #expect(await youtube.requested.count == 0)
         Self.expectStoreUntouched(env)
+
+        await homepage.setArticle(15155, .html(try Self.html("cast-body-15155")))
+        await model.retry()
+        try Self.expectOld(model.state)
     }
 
-    // MARK: - AC-10 / AC-12 / AC-13 / AC-20 video slot
-
-    // AC-10: no matching search result → "영상을 찾지 못했습니다" in the video slot only; article still shown
-    @Test func ac10_noMatchingVideoIsNotFound() async throws {
-        let env = try Env(2026, 11, 20, 13)
+    // AC-19: entry without an article number → network error, nothing fetched, store untouched
+    @Test func ac19_missingArticleNumberIsNetworkError() async throws {
+        let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
-        let model = env.model(homepage: try Self.homepage2(), youtube: FakeYouTube(.data(try Self.json("yt-search-20200714"))))
+        let homepage = try Self.oldHomepage()
+        let youtube = try Self.youtube0713()
+        let noNumber = DevotionEntry(date: Self.date(2025, 9, 11), weekday: "목", passageText: "잠언 23:24-35",
+                                     passage: nil, author: nil, articleNo: nil)
+        let model = env.model(testament: .oldTestament, entry: noNumber, homepage: homepage, youtube: youtube)
 
         await model.load()
 
-        try Self.expectCondition2(model.state, video: .notFound)
+        #expect(model.state == .networkError)
+        #expect(await homepage.requested.count == 0)
+        #expect(await youtube.requested.count == 0)
+        Self.expectStoreUntouched(env)
+    }
+
+    // MARK: - AC-20 video slot (M4 AC-10 / AC-12 / AC-13 / AC-20)
+
+    // AC-20 (M4 AC-10): no matching search result → video slot "not found"; article still shown
+    @Test func ac20_noMatchingVideoIsNotFound() async throws {
+        let env = try Env(2026, 11, 20, 13)
+        defer { env.cleanup() }
+        let model = try Self.newModel(env, homepage: try Self.newHomepage(),
+                                      youtube: FakeYouTube(.data(try Self.json("yt-search-20200714"))))
+
+        await model.load()
+
+        try Self.expectNew(model.state, video: .notFound)
         let c = try #require(Self.content(model.state))
         #expect(c.video.message == "영상을 찾지 못했습니다")
         let expectedSermon = try Self.article("cast-body-11480").sermon
         #expect(c.article.sermon == expectedSermon)
     }
 
-    // AC-12: YouTube network error → video slot shows the connection message; article still shown
-    @Test func ac12_youtubeErrorIsVideoSlotNetworkError() async throws {
+    // AC-20 (M4 AC-12): YouTube network error → video slot error only; screen stays .showing
+    @Test func ac20_youtubeErrorIsVideoSlotNetworkError() async throws {
         let env = try Env(2026, 11, 20, 13)
         defer { env.cleanup() }
         let youtube = FakeYouTube(.failure(URLError(.notConnectedToInternet)))
-        let model = env.model(homepage: try Self.homepage2(), youtube: youtube)
+        let model = try Self.newModel(env, homepage: try Self.newHomepage(), youtube: youtube)
 
         await model.load()
 
-        try Self.expectCondition2(model.state, video: .networkError)
+        try Self.expectNew(model.state, video: .networkError)
         let c = try #require(Self.content(model.state))
         #expect(c.video.message == "인터넷 연결을 확인해 주세요")
-        let expectedSermon = try Self.article("cast-body-11480").sermon
-        #expect(c.article.sermon == expectedSermon)
         #expect(await youtube.requested.count == 1)
     }
 
-    // AC-12 boundary: YouTube HTTP error (badStatus) is the same video-slot error, not a whole-screen error
-    @Test func ac12_youtubeBadStatusIsVideoSlotNetworkError() async throws {
+    // AC-20 (M4 AC-12 boundary): YouTube HTTP error (badStatus) is the same video-slot error
+    @Test func ac20_youtubeBadStatusIsVideoSlotNetworkError() async throws {
         let env = try Env(2026, 11, 20, 13)
         defer { env.cleanup() }
-        let model = env.model(homepage: try Self.homepage2(), youtube: FakeYouTube(.failure(YouTubeSearchError.badStatus(403))))
+        let model = try Self.newModel(env, homepage: try Self.newHomepage(),
+                                      youtube: FakeYouTube(.failure(YouTubeSearchError.badStatus(403))))
 
         await model.load()
 
-        try Self.expectCondition2(model.state, video: .networkError)
+        try Self.expectNew(model.state, video: .networkError)
     }
 
-    // AC-13: no API key (nil or "") → YouTube never called, video slot "not found"
+    // AC-20 (M4 AC-13): no API key (nil or "") → YouTube never called, video slot "not found"
     @Test(arguments: [nil, ""] as [String?])
-    func ac13_noAPIKeySkipsSearch(apiKey: String?) async throws {
+    func ac20_noAPIKeySkipsSearch(apiKey: String?) async throws {
         let env = try Env(2026, 11, 20, 13)
         defer { env.cleanup() }
         let youtube = try Self.youtube0713()
-        let model = env.model(homepage: try Self.homepage2(), youtube: youtube, apiKey: apiKey)
+        let model = try Self.newModel(env, homepage: try Self.newHomepage(), youtube: youtube, apiKey: apiKey)
 
         await model.load()
 
         #expect(await youtube.requested.count == 0)
-        try Self.expectCondition2(model.state, video: .notFound)
+        try Self.expectNew(model.state, video: .notFound)
     }
 
-    // AC-20: no API key even when the article has an embed → "not found" (R-4), article kept
+    // AC-20 (M4 AC-20): no API key even when the article has an embed → "not found", article kept
     @Test(arguments: [nil, ""] as [String?])
     func ac20_noAPIKeyIgnoresArticleEmbed(apiKey: String?) async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
         let youtube = try Self.youtube0713()
-        let model = env.model(homepage: try Self.homepage1(), youtube: youtube, apiKey: apiKey)
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: youtube, apiKey: apiKey)
 
         await model.load()
 
-        try Self.expectCondition1(model.state, video: .notFound)
+        try Self.expectOld(model.state, video: .notFound)
         let c = try #require(Self.content(model.state))
         #expect(c.video.message == "영상을 찾지 못했습니다")
         #expect(c.article.hymn == "454장 ‘주와 같이 되기를’")
         #expect(await youtube.requested.count == 0)
     }
 
-    // MARK: - AC-18 midnight boundary
+    // MARK: - AC-24 messages and header
 
-    // AC-18 ①: new finished on 11/20 → at 23:50 the same day, finished message, no requests
-    @Test func ac18_beforeMidnightStillFinished() async throws {
-        let env = try Env(2026, 11, 20, 23, 50)
-        defer { env.cleanup() }
-        env.store.markFinished(.newTestament, on: Self.date(2026, 11, 20))
-        let homepage = try Self.homepage2()
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-
-        await model.load()
-
-        #expect(model.state == .finishedToday(.newTestament))
-        #expect(model.state.message == "오늘 신약 묵상을 마쳤습니다")
-        #expect(await homepage.requested.count == 0)
-    }
-
-    // AC-18 ②: after midnight (00:10 11/21) it is old testament on a new day → AC-1 content
-    @Test func ac18_afterMidnightShowsMorningDevotion() async throws {
-        let env = try Env(2026, 11, 20, 23, 50)
-        defer { env.cleanup() }
-        env.store.markFinished(.newTestament, on: Self.date(2026, 11, 20))
-        try env.setTime(2026, 11, 21, 0, 10)
-        let model = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
-
-        await model.load()
-
-        try Self.expectCondition1(model.state)
-    }
-
-    // AC-18 boundary: a finished day of yesterday for the same testament does not block today
-    @Test func ac18_yesterdayFinishedDoesNotBlock() async throws {
-        let env = try Env(2026, 11, 21, 13)
-        defer { env.cleanup() }
-        env.store.markFinished(.newTestament, on: Self.date(2026, 11, 20))
-        let model = env.model(homepage: try Self.homepage2(), youtube: try Self.youtube0713())
-
-        await model.load()
-
-        try Self.expectCondition2(model.state)
-    }
-
-    // MARK: - AC-21 refreshIfStale
-
-    // AC-21 ①: same testament and day → state kept, no extra requests
-    @Test func ac21_refreshSameSlotIsNoOp() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = try Self.homepage1()
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-        await model.load()
-        let before = model.state
-        let count = await homepage.requested.count
-
-        try env.setTime(2026, 11, 20, 8)
-        await model.refreshIfStale()
-
-        #expect(model.state == before)
-        #expect(await homepage.requested.count == count)
-    }
-
-    // AC-21 ②: finished old in the morning, back at 13:00 → loads the new testament
-    @Test func ac21_refreshAfterNoonLoadsNewTestament() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = try Self.homepage1()
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-        await model.load()
-        model.markSeen()
-        #expect(model.state == .finishedToday(.oldTestament))
-
-        try env.setTime(2026, 11, 20, 13)
-        await homepage.setSearch("2020/07/12", .html(try Self.emptyPage()))
-        await homepage.setSearch("2020/07/13", .html(try Self.html("cast-search-john-5")))
-        await homepage.setArticle(11480, .html(try Self.html("cast-body-11480")))
-        await model.refreshIfStale()
-
-        try Self.expectCondition2(model.state)
-    }
-
-    // AC-21 ②-boundary: finished old, back later the same morning → stays finished, no requests
-    @Test func ac21_refreshFinishedSameMorningIsNoOp() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = try Self.homepage1()
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-        await model.load()
-        model.markSeen()
-        let count = await homepage.requested.count
-
-        try env.setTime(2026, 11, 20, 11)
-        await model.refreshIfStale()
-
-        #expect(model.state == .finishedToday(.oldTestament))
-        #expect(await homepage.requested.count == count)
-    }
-
-    // AC-21 ②-boundary: next morning (same testament, new day) → reloads and shows the following devotion
-    @Test func ac21_refreshNextMorningReloads() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = try Self.homepage1()
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-        await model.load()
-        model.markSeen()
-
-        try env.setTime(2026, 11, 21, 7)
-        await homepage.setSearch("2025/09/12", .html(try Self.html("cast-search-date-20250912")))
-        await homepage.setArticle(15157, .html(try Self.html("cast-body-15155")))
-        await model.refreshIfStale()
-
-        let c = try #require(Self.content(model.state))
-        #expect(c.entry.date == Self.date(2025, 9, 12))
-        #expect(c.entry.articleNo == 15157)
-    }
-
-    // AC-21 ③: network error state → refresh retries even at the same time
-    @Test func ac21_refreshAfterNetworkErrorRetries() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = FakeHomepage(
-            search: ["2025/09/11": .failure(URLError(.notConnectedToInternet))],
-            article: [15155: .html(try Self.html("cast-body-15155"))],
-            defaultSearch: try Self.emptyPage())
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-        await model.load()
-        #expect(model.state == .networkError)
-
-        await homepage.setSearch("2025/09/11", .html(try Self.html("cast-search-proverbs-23")))
-        await model.refreshIfStale()
-
-        try Self.expectCondition1(model.state)
-    }
-
-    // AC-21 boundary: refresh while still .loading (never loaded) does nothing
-    @Test func ac21_refreshWhileLoadingIsNoOp() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let homepage = try Self.homepage1()
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
-
-        await model.refreshIfStale()
-
-        #expect(model.state == .loading)
-        #expect(await homepage.requested.count == 0)
-    }
-
-    // MARK: - AC-22 messages
-
-    // AC-22: screen-state messages
-    @Test func ac22_screenStateMessages() {
-        #expect(DevotionScreenState.finishedToday(.newTestament).message == "오늘 신약 묵상을 마쳤습니다")
-        #expect(DevotionScreenState.finishedToday(.oldTestament).message == "오늘 구약 묵상을 마쳤습니다")
+    // AC-24 (M4 AC-22): remaining screen-state messages
+    @Test func ac24_screenStateMessages() {
         #expect(DevotionScreenState.networkError.message == "인터넷 연결을 확인해 주세요")
-        #expect(DevotionScreenState.noNextDevotion.message == "다음 묵상을 찾지 못했습니다")
         #expect(DevotionScreenState.loading.message == nil)
     }
 
-    // AC-22: .showing has no message
-    @Test func ac22_showingHasNoMessage() throws {
+    // AC-24 (M4 AC-22): .showing has no message
+    @Test func ac24_showingHasNoMessage() throws {
         let entry = try #require(DevotionTitleParser.parse("2020/07/13(월) “요한복음 5:30-47” / 작성: 박성호"))
         let content = DevotionScreenContent(
             testament: .newTestament,
@@ -803,54 +687,72 @@ struct DevotionScreenModelTests {
         #expect(DevotionScreenState.showing(content).message == nil)
     }
 
-    // AC-22: video-slot messages
-    @Test func ac22_videoSlotMessages() {
+    // AC-24 (M4 AC-22): video-slot messages
+    @Test func ac24_videoSlotMessages() {
         #expect(VideoSlot.notFound.message == "영상을 찾지 못했습니다")
         #expect(VideoSlot.networkError.message == "인터넷 연결을 확인해 주세요")
         #expect(VideoSlot.video(id: "x").message == nil)
     }
 
-    // MARK: - AC-24 markSeen outside .showing
-
-    // AC-24: markSeen on a fresh model (.loading) does nothing
-    @Test func ac24_markSeenWhileLoadingIsNoOp() throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let model = env.model(homepage: try Self.homepage1(), youtube: try Self.youtube0713())
-
-        model.markSeen()
-
-        #expect(model.state == .loading)
-        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+    // AC-24: header comes from the entry, not article.passageText
+    @Test func ac24_headerComesFromEntry() {
+        let entry = DevotionEntry(date: Self.date(2020, 7, 13), weekday: "월", passageText: "요한복음 5:30-47",
+                                  passage: nil, author: nil)
+        let content = DevotionScreenContent(
+            testament: .newTestament,
+            entry: entry,
+            article: DevotionArticle(titleEntry: nil, passageText: "다른 값", hymn: nil, sermon: "s"),
+            video: .notFound)
+        #expect(content.headerDate == "2020/07/13(월)")
+        #expect(content.headerPassage == "요한복음 5:30-47")
+        #expect(content.headerTitle == "2020/07/13(월) 요한복음 5:30-47")
+        #expect(content.headerTitle == entry.displayTitle)
     }
 
-    // AC-24: markSeen in .noNextDevotion does nothing
-    @Test func ac24_markSeenWhenNoNextDevotionIsNoOp() async throws {
-        let env = try Env(2026, 11, 20, 7)
-        defer { env.cleanup() }
-        let model = env.model(homepage: FakeHomepage(defaultSearch: try Self.emptyPage()), youtube: try Self.youtube0713())
-        await model.load()
-        #expect(model.state == .noNextDevotion)
-
-        model.markSeen()
-
-        #expect(model.state == .noNextDevotion)
-        Self.expectStoreUntouched(env)
+    // AC-24 boundary: header without weekday
+    @Test func ac24_headerWithoutWeekday() {
+        let entry = DevotionEntry(date: Self.date(2020, 7, 13), weekday: nil, passageText: "요한복음 5:30-47",
+                                  passage: nil, author: nil)
+        let content = DevotionScreenContent(
+            testament: .newTestament,
+            entry: entry,
+            article: DevotionArticle(titleEntry: nil, passageText: "다른 값", hymn: nil, sermon: "s"),
+            video: .notFound)
+        #expect(content.headerDate == "2020/07/13")
+        #expect(content.headerTitle == "2020/07/13 요한복음 5:30-47")
     }
 
-    // AC-24 boundary: markSeen in .networkError does nothing
-    @Test func ac24_markSeenWhenNetworkErrorIsNoOp() async throws {
+    // MARK: - AC-26 finish button
+
+    // AC-26: .next shows the button until markSeen
+    @Test func ac26_nextModeButtonUntilFinished() async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
-        let homepage = FakeHomepage(
-            search: ["2025/09/11": .failure(URLError(.notConnectedToInternet))],
-            defaultSearch: try Self.emptyPage())
-        let model = env.model(homepage: homepage, youtube: try Self.youtube0713())
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+
+        #expect(model.showsFinishButton == true)
         await model.load()
+        #expect(model.showsFinishButton == true)
+        model.markSeen()
+        #expect(model.showsFinishButton == false)
+    }
+
+    // AC-26 / AC-14: .review never shows the button, and markSeen writes nothing
+    @Test func ac26_reviewModeNeverShowsButton() async throws {
+        let env = try Env(2026, 11, 20, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, mode: .review, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+
+        #expect(model.mode == .review)
+        #expect(model.showsFinishButton == false)
+        await model.load()
+        try Self.expectOld(model.state)
+        #expect(model.showsFinishButton == false)
 
         model.markSeen()
 
-        #expect(model.state == .networkError)
+        #expect(model.showsFinishButton == false)
+        #expect(model.isFinished == false)
         Self.expectStoreUntouched(env)
     }
 }

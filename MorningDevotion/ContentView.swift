@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var model = DevotionScreenModel(
+    @State private var model = MainScreenModel(
         store: ReadingProgressStore(defaults: .standard),
         fetcher: URLSessionHTMLFetcher(),
         searcher: URLSessionYouTubeSearchFetcher(),
@@ -11,6 +11,8 @@ struct ContentView: View {
     )
 
     var body: some View {
-        DevotionScreenView(model: model)
+        NavigationStack {
+            MainScreenView(model: model)
+        }
     }
 }

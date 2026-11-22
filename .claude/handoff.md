@@ -65,6 +65,7 @@
 4. M1 Attention 중 열린 것: D:282 다른 연도·책 제목도 같은 문법인가, D:250 다른 목록 페이지도 `class=subjectColor>` 마크업인가 (2026-11-20 날짜 검색 페이지 2개에서 `subjectColor` 1개씩 실측 — 부분 근거), D:249 MainActor 경고 (M2 attempt 1 빌드에 `DevotionModels.swift:58` 경고 4건 실측 → 2026-11-20 새 derivedData `build`·`build-for-testing` 에선 Swift 경고 0건 실측. 사라진 이유 미확인)
 5. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
 6. 미확인: 새 fixture 3개(`cast-search-date-*.html`)는 작업 폴더에 CRLF 로 있고 git 이 LF 로 저장한다는 경고가 나왔다 (실측 `git add` 경고). 파서가 CRLF·LF 에서 같은 결과인지, 기존 fixture 도 같은지 미확인 — 새로 clone 한 곳에서 테스트가 다르게 나오면 여기부터
+7. 메인 페이지 범위 확정(2026-11-20 진성, PRD 전): 이유 — 앱을 열자마자 설교 본문이 나와 당황스럽다. (1) 앱을 열면 메인 화면, 다음 오전(구약)·오후(신약) 말씀의 날짜·본문 제목 표시 (2) 각 말씀 옆에 오늘 "다 봤어요" 여부 **표시만** — 기존 `finishedDay` 재사용, 메인에서 체크하는 기능 없음 (3) 누르면 지금의 묵상 화면으로 이동 — 시간과 무관하게 둘 다 열 수 있음(12시 규칙은 화면 선택에 쓰지 않음). 다음: `/prd` 로 기능 PRD
 
 ## 최신 스트림 — 2026-11-20: sap 설치본 판정 → F-1 M4 파이프라인 완주 (resolved)
 
