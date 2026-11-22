@@ -265,15 +265,14 @@ struct ReadingProgressStoreTests {
         }
     }
 
-    // MARK: - M4 additions (AC-17 (M4): finished day keys and non-writing read)
+    // MARK: - M4 additions (AC-17 (M4): non-writing read). F-4: finished-day API removed (AC-48)
 
+    /// Legacy keys from M4. F-4 never reads or writes them; tests use raw names only.
     private static let finishedOldRaw = "readingProgress.finishedDayOld"
     private static let finishedNewRaw = "readingProgress.finishedDayNew"
 
-    // AC-17 (M4) ①⑦: new key names; existing constants unchanged
+    // AC-17 (M4) ⑦: existing constants unchanged (finished-day constants removed in F-4)
     @Test func m4_ac17_constants() {
-        #expect(ReadingProgressStore.finishedOldKey == Self.finishedOldRaw)
-        #expect(ReadingProgressStore.finishedNewKey == Self.finishedNewRaw)
         #expect(ReadingProgressStore.oldKey == Self.oldKey)
         #expect(ReadingProgressStore.newKey == Self.newKey)
         #expect(ReadingProgressStore.defaultProgress == ReadingProgress(
@@ -282,96 +281,94 @@ struct ReadingProgressStoreTests {
         ))
     }
 
-    // AC-17 (M4) ②: empty store → both finished days nil, nothing written to any key
-    @Test func m4_ac17_emptyFinishedDayIsNilAndNotWritten() throws {
-        try Self.withSuite { _, defaults in
-            let store = ReadingProgressStore(defaults: defaults)
-            #expect(store.finishedDay(for: .oldTestament) == nil)
-            #expect(store.finishedDay(for: .newTestament) == nil)
-            #expect(defaults.object(forKey: Self.finishedOldRaw) == nil)
-            #expect(defaults.object(forKey: Self.finishedNewRaw) == nil)
-            #expect(defaults.object(forKey: Self.oldKey) == nil)
-            #expect(defaults.object(forKey: Self.newKey) == nil)
-        }
+    // MARK: - AC-47 ReadingProgress.isRead
+
+    // AC-47: read ⇔ date <= lastSeen of that testament
+    @Test func ac47_isReadComparesWithTestamentLastSeen() {
+        let p = ReadingProgress(lastSeenOld: Self.date(2025, 9, 12), lastSeenNew: Self.date(2020, 7, 11))
+        #expect(p.isRead(Self.date(2025, 9, 11), for: .oldTestament) == true)
+        #expect(p.isRead(Self.date(2025, 9, 12), for: .oldTestament) == true)
+        #expect(p.isRead(Self.date(2025, 9, 13), for: .oldTestament) == false)
+        #expect(p.isRead(Self.date(2020, 7, 11), for: .newTestament) == true)
+        #expect(p.isRead(Self.date(2020, 7, 13), for: .newTestament) == false)
+        // Per-testament lastSeen is used, not the other one.
+        #expect(p.isRead(Self.date(2025, 9, 12), for: .newTestament) == false)
+        #expect(p.isRead(Self.date(2020, 7, 13), for: .oldTestament) == true)
     }
 
-    // AC-17 (M4) ③: markFinished(old) persists "YYYY/MM/DD" under the old key only; survives a new instance
-    @Test func m4_ac17_markFinishedOldPersists() throws {
+    // AC-47 boundary: month / year edges compare by calendar date
+    @Test func ac47_isReadMonthAndYearEdges() {
+        let p = ReadingProgress(lastSeenOld: Self.date(2025, 9, 30), lastSeenNew: Self.date(2020, 12, 31))
+        #expect(p.isRead(Self.date(2025, 10, 1), for: .oldTestament) == false)
+        #expect(p.isRead(Self.date(2025, 9, 30), for: .oldTestament) == true)
+        #expect(p.isRead(Self.date(2021, 1, 1), for: .newTestament) == false)
+        #expect(p.isRead(Self.date(2020, 12, 31), for: .newTestament) == true)
+        #expect(p.isRead(Self.date(2019, 1, 1), for: .newTestament) == true)
+    }
+
+    // AC-47: the default progress reads its own default entries as read, the next ones as unread
+    @Test func ac47_isReadWithDefaultProgress() {
+        let p = ReadingProgressStore.defaultProgress
+        #expect(p.isRead(Self.date(2025, 9, 10), for: .oldTestament) == true)
+        #expect(p.isRead(Self.date(2025, 9, 11), for: .oldTestament) == false)
+        #expect(p.isRead(Self.date(2020, 7, 11), for: .newTestament) == true)
+        #expect(p.isRead(Self.date(2020, 7, 13), for: .newTestament) == false)
+    }
+
+    // MARK: - AC-48 legacy finished-day keys are ignored (FR-1)
+
+    // AC-48: pre-existing finished-day raw values survive load / storedProgress / markSeen and do not affect progress
+    @Test func ac48_legacyFinishedKeysUntouchedAndIgnored() throws {
         try Self.withSuite { suiteName, defaults in
-            ReadingProgressStore(defaults: defaults).markFinished(.oldTestament, on: Self.date(2026, 11, 20))
-            #expect(defaults.string(forKey: Self.finishedOldRaw) == "2026/11/20")
-            #expect(defaults.object(forKey: Self.finishedNewRaw) == nil)
+            defaults.set("2026/11/22", forKey: Self.finishedOldRaw)
+            defaults.set("garbage", forKey: Self.finishedNewRaw)
+            let store = ReadingProgressStore(defaults: defaults)
 
-            let (_, s2) = try Self.reopen(suiteName)
-            #expect(s2.finishedDay(for: .oldTestament) == Self.date(2026, 11, 20))
-            #expect(s2.finishedDay(for: .newTestament) == nil)
+            #expect(store.load() == ReadingProgressStore.defaultProgress)
+            #expect(store.storedProgress() == ReadingProgressStore.defaultProgress)
+            store.markSeen(.oldTestament, date: Self.date(2025, 9, 11))
+            let returned = store.markSeen(.newTestament, date: Self.date(2020, 7, 13))
+
+            let expected = ReadingProgress(lastSeenOld: Self.date(2025, 9, 11), lastSeenNew: Self.date(2020, 7, 13))
+            #expect(returned == expected)
+            #expect(store.storedProgress() == expected)
+            #expect(store.load() == expected)
+            #expect(defaults.string(forKey: Self.finishedOldRaw) == "2026/11/22")
+            #expect(defaults.string(forKey: Self.finishedNewRaw) == "garbage")
+
+            let (d2, s2) = try Self.reopen(suiteName)
+            #expect(s2.load() == expected)
+            #expect(d2.string(forKey: Self.finishedOldRaw) == "2026/11/22")
+            #expect(d2.string(forKey: Self.finishedNewRaw) == "garbage")
         }
     }
 
-    // AC-17 (M4) ③ symmetric: markFinished(new) uses the new key only; zero-padded
-    @Test func m4_ac17_markFinishedNewPersists() throws {
-        try Self.withSuite { suiteName, defaults in
-            ReadingProgressStore(defaults: defaults).markFinished(.newTestament, on: Self.date(2026, 1, 5))
-            #expect(defaults.string(forKey: Self.finishedNewRaw) == "2026/01/05")
-            #expect(defaults.object(forKey: Self.finishedOldRaw) == nil)
-
-            let (_, s2) = try Self.reopen(suiteName)
-            #expect(s2.finishedDay(for: .newTestament) == Self.date(2026, 1, 5))
-            #expect(s2.finishedDay(for: .oldTestament) == nil)
-        }
-    }
-
-    // AC-17 (M4) boundary: a later markFinished overwrites the earlier day
-    @Test func m4_ac17_markFinishedOverwrites() throws {
+    // AC-48 (rewrites m4_ac17_markSeenLeavesFinishedKeys): empty store → markSeen never creates finished-day keys
+    @Test func ac48_markSeenNeverCreatesFinishedKeys() throws {
         try Self.withSuite { _, defaults in
             let store = ReadingProgressStore(defaults: defaults)
-            store.markFinished(.oldTestament, on: Self.date(2026, 11, 20))
-            store.markFinished(.oldTestament, on: Self.date(2026, 11, 21))
-            #expect(store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 21))
-            #expect(defaults.string(forKey: Self.finishedOldRaw) == "2026/11/21")
-        }
-    }
-
-    // AC-17 (M4) ④: markFinished does not touch lastSeen keys (empty or stored)
-    @Test func m4_ac17_markFinishedLeavesLastSeenKeys() throws {
-        try Self.withSuite { _, defaults in
-            ReadingProgressStore(defaults: defaults).markFinished(.oldTestament, on: Self.date(2026, 11, 20))
-            #expect(defaults.object(forKey: Self.oldKey) == nil)
-            #expect(defaults.object(forKey: Self.newKey) == nil)
-        }
-        try Self.withSuite { _, defaults in
-            defaults.set("2025/09/11", forKey: Self.oldKey)
-            defaults.set("garbage", forKey: Self.newKey)
-            ReadingProgressStore(defaults: defaults).markFinished(.newTestament, on: Self.date(2026, 11, 20))
-            #expect(defaults.string(forKey: Self.oldKey) == "2025/09/11")
-            #expect(defaults.string(forKey: Self.newKey) == "garbage")
-        }
-    }
-
-    // AC-17 (M4) ④: markSeen does not touch finished-day keys
-    @Test func m4_ac17_markSeenLeavesFinishedKeys() throws {
-        try Self.withSuite { _, defaults in
-            defaults.set("2026/11/19", forKey: Self.finishedOldRaw)
-            let store = ReadingProgressStore(defaults: defaults)
+            _ = store.load()
+            _ = store.storedProgress()
             store.markSeen(.oldTestament, date: Self.date(2025, 9, 11))
             store.markSeen(.newTestament, date: Self.date(2020, 7, 13))
-            #expect(defaults.string(forKey: Self.finishedOldRaw) == "2026/11/19")
+            #expect(defaults.object(forKey: Self.finishedOldRaw) == nil)
             #expect(defaults.object(forKey: Self.finishedNewRaw) == nil)
-            #expect(store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 19))
+            #expect(defaults.string(forKey: Self.oldKey) == "2025/09/11")
+            #expect(defaults.string(forKey: Self.newKey) == "2020/07/13")
         }
     }
 
-    // AC-17 (M4) ⑤: unreadable finished values → nil, raw value left as is
-    @Test(arguments: ["garbage", "2026/11/2", ""])
-    func m4_ac17_unreadableFinishedDayIsNilAndKept(raw: String) throws {
+    // AC-48 boundary: a legacy "finished today" old value on a store whose lastSeen is 09/11 changes nothing
+    @Test func ac48_legacyFinishedTodayDoesNotChangeProgress() throws {
         try Self.withSuite { _, defaults in
-            defaults.set(raw, forKey: Self.finishedOldRaw)
-            defaults.set(raw, forKey: Self.finishedNewRaw)
+            defaults.set("2025/09/11", forKey: Self.oldKey)
+            defaults.set("2026/11/22", forKey: Self.finishedOldRaw)
             let store = ReadingProgressStore(defaults: defaults)
-            #expect(store.finishedDay(for: .oldTestament) == nil)
-            #expect(store.finishedDay(for: .newTestament) == nil)
-            #expect(defaults.string(forKey: Self.finishedOldRaw) == raw)
-            #expect(defaults.string(forKey: Self.finishedNewRaw) == raw)
+            let p = store.storedProgress()
+            #expect(p == ReadingProgress(lastSeenOld: Self.date(2025, 9, 11), lastSeenNew: Self.date(2020, 7, 11)))
+            #expect(p.isRead(Self.date(2025, 9, 11), for: .oldTestament) == true)
+            #expect(p.isRead(Self.date(2025, 9, 12), for: .oldTestament) == false)
+            #expect(defaults.string(forKey: Self.finishedOldRaw) == "2026/11/22")
         }
     }
 

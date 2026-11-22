@@ -107,22 +107,17 @@ private final class Env {
     func model(
         testament: Testament,
         entry: DevotionEntry,
-        mode: DevotionScreenMode = .next,
-        homepage: FakeHomepage,
+        homepage: any DevotionHTMLFetching,
         youtube: FakeYouTube,
         apiKey: String? = "k"
     ) -> DevotionScreenModel {
-        let clock = self.clock
-        return DevotionScreenModel(
+        DevotionScreenModel(
             testament: testament,
             entry: entry,
-            mode: mode,
             store: store,
             fetcher: homepage,
             searcher: youtube,
-            apiKey: apiKey,
-            calendar: calendar,
-            now: { clock.now }
+            apiKey: apiKey
         )
     }
 
@@ -212,15 +207,15 @@ struct DevotionScreenModelTests {
         FakeYouTube(.data(try json("yt-search-20200713")))
     }
 
-    private static func oldModel(_ env: Env, mode: DevotionScreenMode = .next,
+    private static func oldModel(_ env: Env,
                                  homepage: FakeHomepage, youtube: FakeYouTube, apiKey: String? = "k") throws -> DevotionScreenModel {
-        env.model(testament: .oldTestament, entry: try oldEntry(), mode: mode,
+        env.model(testament: .oldTestament, entry: try oldEntry(),
                   homepage: homepage, youtube: youtube, apiKey: apiKey)
     }
 
-    private static func newModel(_ env: Env, mode: DevotionScreenMode = .next,
+    private static func newModel(_ env: Env,
                                  homepage: FakeHomepage, youtube: FakeYouTube, apiKey: String? = "k") throws -> DevotionScreenModel {
-        env.model(testament: .newTestament, entry: try newEntry(), mode: mode,
+        env.model(testament: .newTestament, entry: try newEntry(),
                   homepage: homepage, youtube: youtube, apiKey: apiKey)
     }
 
@@ -256,12 +251,10 @@ struct DevotionScreenModelTests {
         #expect(c.video == video)
     }
 
-    /// "저장값 전부 그대로" on an empty store: all four raw keys absent, API values are defaults / nil.
+    /// "저장값 전부 그대로" on an empty store: all four raw keys absent, progress is the default.
     private static func expectStoreUntouched(_ env: Env) {
         #expect(env.rawSnapshot() == [nil, nil, nil, nil])
         #expect(env.store.storedProgress() == ReadingProgressStore.defaultProgress)
-        #expect(env.store.finishedDay(for: .oldTestament) == nil)
-        #expect(env.store.finishedDay(for: .newTestament) == nil)
     }
 
     // MARK: - AC-13 load from the given entry (M4 AC-1 / AC-2 rewritten)
@@ -276,7 +269,7 @@ struct DevotionScreenModelTests {
 
         #expect(model.state == .loading)
         #expect(model.testament == .oldTestament)
-        #expect(model.mode == .next)
+        #expect(model.isRead == false)
         await model.load()
 
         try Self.expectOld(model.state)
@@ -328,7 +321,7 @@ struct DevotionScreenModelTests {
 
     // MARK: - AC-15 / AC-16 / AC-17 "다 봤어요"
 
-    // AC-15 (FR-9, M4 AC-3): markSeen records progress + finished day, stays .showing, isFinished
+    // AC-15 / AC-65 (FR-4): markSeen records progress only (no finished day), stays .showing, isFinished
     @Test func ac15_markSeenRecordsAndFinishes() async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
@@ -336,14 +329,13 @@ struct DevotionScreenModelTests {
         await model.load()
         try Self.expectOld(model.state)
         let shown = model.state
+        #expect(model.showsFinishButton == true)
 
         model.markSeen()
 
         // second slot = new default written by ReadingProgressStore.markSeen's internal load()
-        #expect(env.rawSnapshot() == ["2025/09/11", "2020/07/11", "2026/11/20", nil])
+        #expect(env.rawSnapshot() == ["2025/09/11", "2020/07/11", nil, nil])
         #expect(env.store.storedProgress().lastSeenNew == Self.date(2020, 7, 11))
-        #expect(env.store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 20))
-        #expect(env.store.finishedDay(for: .newTestament) == nil)
         #expect(model.isFinished == true)
         #expect(model.state == shown)
         #expect(model.state.message == nil)
@@ -361,29 +353,11 @@ struct DevotionScreenModelTests {
         try env.setTime(2026, 11, 20, 12, 1)
         model.markSeen()
 
-        #expect(env.defaults.string(forKey: "readingProgress.finishedDayOld") == "2026/11/20")
+        #expect(env.defaults.object(forKey: "readingProgress.finishedDayOld") == nil)
         #expect(env.defaults.object(forKey: "readingProgress.finishedDayNew") == nil)
         #expect(env.store.storedProgress().lastSeenOld == Self.date(2025, 9, 11))
         #expect(env.store.storedProgress().lastSeenNew == Self.date(2020, 7, 11))
         #expect(model.isFinished == true)
-    }
-
-    // AC-16 (M4 AC-3 boundary): finished day is the press moment's local day (after midnight → next day)
-    @Test func ac16_markSeenAfterMidnightUsesPressDay() async throws {
-        let env = try Env(2026, 11, 20, 23, 50)
-        defer { env.cleanup() }
-        let model = try Self.newModel(env, homepage: try Self.newHomepage(), youtube: try Self.youtube0713())
-        await model.load()
-        try Self.expectNew(model.state)
-
-        try env.setTime(2026, 11, 21, 0, 10)
-        model.markSeen()
-
-        #expect(env.defaults.string(forKey: "readingProgress.finishedDayNew") == "2026/11/21")
-        #expect(env.defaults.string(forKey: "readingProgress.lastSeenNew") == "2020/07/13")
-        #expect(env.defaults.object(forKey: "readingProgress.finishedDayOld") == nil)
-        #expect(env.store.finishedDay(for: .newTestament) == Self.date(2026, 11, 21))
-        #expect(env.store.storedProgress().lastSeenNew == Self.date(2020, 7, 13))
     }
 
     // AC-17 (M4 AC-3 / AC-24): a second markSeen (next day's clock) changes nothing
@@ -400,7 +374,6 @@ struct DevotionScreenModelTests {
         model.markSeen()
 
         #expect(env.rawSnapshot() == snapshot)
-        #expect(env.store.finishedDay(for: .oldTestament) == Self.date(2026, 11, 20))
         #expect(model.isFinished == true)
         #expect(model.state == state)
     }
@@ -737,22 +710,417 @@ struct DevotionScreenModelTests {
         #expect(model.showsFinishButton == false)
     }
 
-    // AC-26 / AC-14: .review never shows the button, and markSeen writes nothing
-    @Test func ac26_reviewModeNeverShowsButton() async throws {
-        let env = try Env(2026, 11, 20, 7)
+
+    // MARK: - F-4 helpers (move)
+
+    /// Synthetic page0915 (DESIGN §7-1): date-20250912 with 2025/09/12(금) → 2025/09/15(월), no=15157 → no=15160.
+    private static func page0915() throws -> String {
+        let page = try html("cast-search-date-20250912")
+            .replacingOccurrences(of: "2025/09/12(금)", with: "2025/09/15(월)")
+            .replacingOccurrences(of: "no=15157", with: "no=15160")
+        let entries = DevotionListParser.parseEntries(fromHTML: page)
+        try #require(entries.count == 1)
+        try #require(entries.first?.date == date(2025, 9, 15))
+        try #require(entries.first?.articleNo == 15160)
+        return page
+    }
+
+    /// Old 2025/09/12 #15157 (from cast-search-date-20250912).
+    private static func old0912() throws -> DevotionEntry {
+        let e = try listEntry("cast-search-date-20250912", date(2025, 9, 12))
+        #expect(e.articleNo == 15157)
+        return e
+    }
+
+    /// Old 2025/09/15 #15160 (from page0915).
+    private static func old0915() throws -> DevotionEntry {
+        let entries = DevotionListParser.parseEntries(fromHTML: try page0915())
+        return try #require(entries.first)
+    }
+
+    /// Searches 2025/09/11 → proverbs-23, 2025/09/12 → date-20250912, 2020/07/14 → date-20200714 (others 0건);
+    /// articles 15155, 15157/15160 (→ body-15155), 11480, 11481 (→ body-11480).
+    private static func moveHomepage() throws -> FakeHomepage {
+        FakeHomepage(
+            search: [
+                "2025/09/11": .html(try html("cast-search-proverbs-23")),
+                "2025/09/12": .html(try html("cast-search-date-20250912")),
+                "2020/07/14": .html(try html("cast-search-date-20200714")),
+            ],
+            article: [
+                15155: .html(try html("cast-body-15155")),
+                15157: .html(try html("cast-body-15155")),
+                15160: .html(try html("cast-body-15155")),
+                11480: .html(try html("cast-body-11480")),
+                11481: .html(try html("cast-body-11480")),
+            ],
+            defaultSearch: try emptyPage())
+    }
+
+    private static func since(_ homepage: FakeHomepage, _ from: Int) async -> [String] {
+        Array(describe(await homepage.requested).dropFirst(from))
+    }
+
+    // MARK: - AC-62 … AC-68 move on the screen (US-2, US-3, US-5)
+
+    // AC-62 (US-2 기준 1·2·5): 09/12 → "이전" → 09/11 shown in place → "다음" → 09/12 again; store untouched
+    @Test func ac62_movePreviousThenNextInPlace() async throws {
+        let env = try Env(2026, 11, 22, 7)
         defer { env.cleanup() }
-        let model = try Self.oldModel(env, mode: .review, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
-
-        #expect(model.mode == .review)
-        #expect(model.showsFinishButton == false)
+        let homepage = try Self.moveHomepage()
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: homepage, youtube: try Self.youtube0713())
+        #expect(model.isMoving == false)
+        #expect(model.notice == nil)
         await model.load()
-        try Self.expectOld(model.state)
-        #expect(model.showsFinishButton == false)
+        #expect(Self.content(model.state)?.entry.date == Self.date(2025, 9, 12))
 
-        model.markSeen()
+        await model.move(.previous)
 
-        #expect(model.showsFinishButton == false)
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        #expect(model.entry.articleNo == 15155)
+        let c = try #require(Self.content(model.state))
+        #expect(c.entry.date == Self.date(2025, 9, 11))
+        #expect(c.entry.articleNo == 15155)
+        #expect(c.testament == .oldTestament)
+        let expectedArticle = try Self.article("cast-body-15155")
+        #expect(c.article == expectedArticle)
+        #expect(model.isMoving == false)
+        #expect(model.notice == nil)
+
+        await model.move(.next)
+
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(model.entry.articleNo == 15157)
+        let c2 = try #require(Self.content(model.state))
+        #expect(c2.entry.date == Self.date(2025, 9, 12))
+        #expect(c2.headerTitle == "2025/09/12(금) 잠언 24:1-10")
+        #expect(Self.describe(await homepage.requested)
+            == ["no=15157", "search=2025/09/11", "no=15155", "search=2025/09/12", "no=15157"])
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
         #expect(model.isFinished == false)
+    }
+
+    // AC-63 (US-2 기준 3, [결정] 2): skipped (unread, two ahead) entries still show the finish button
+    @Test func ac63_moveNextToSkippedEntryShowsFinish() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        await homepage.setSearch("2025/09/15", .html(try Self.page0915()))
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: homepage, youtube: try Self.youtube0713())
+        #expect(model.isRead == false)            // lastSeenOld default 09/10
+        #expect(model.showsFinishButton == true)
+        await model.load()
+        let before = await homepage.requested.count
+
+        await model.move(.next)
+
+        #expect(model.entry.date == Self.date(2025, 9, 15))
+        #expect(model.entry.articleNo == 15160)
+        #expect(model.isRead == false)
+        #expect(model.showsFinishButton == true)
+        #expect(Self.content(model.state)?.entry.articleNo == 15160)
+        #expect(await Self.since(homepage, before)
+            == ["search=2025/09/13", "search=2025/09/14", "search=2025/09/15", "no=15160"])
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+    }
+
+    // AC-64 (US-3 기준 1·2): read ⇔ date <= lastSeen; read screens have no button and markSeen writes nothing
+    @Test func ac64_readFollowsProgress() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        env.defaults.set("2025/09/12", forKey: "readingProgress.lastSeenOld")
+        let snapshot = env.rawSnapshot()
+        #expect(snapshot == ["2025/09/12", nil, nil, nil])
+
+        for entry in [try Self.oldEntry(), try Self.old0912()] {
+            let model = env.model(testament: .oldTestament, entry: entry,
+                                  homepage: try Self.moveHomepage(), youtube: try Self.youtube0713())
+            #expect(model.isRead == true)
+            #expect(model.showsFinishButton == false)
+            await model.load()
+            #expect(Self.content(model.state) != nil)
+            model.markSeen()
+            #expect(env.rawSnapshot() == snapshot)
+            #expect(model.isFinished == false)
+            #expect(model.showsFinishButton == false)
+        }
+
+        let unread = env.model(testament: .oldTestament, entry: try Self.old0915(),
+                               homepage: try Self.moveHomepage(), youtube: try Self.youtube0713())
+        #expect(unread.isRead == false)
+        #expect(unread.showsFinishButton == true)
+
+        // moving from read 09/12 to unread 09/15 flips both flags
+        let homepage = try Self.moveHomepage()
+        await homepage.setSearch("2025/09/15", .html(try Self.page0915()))
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.isRead == true)
+        #expect(model.showsFinishButton == false)
+        await model.move(.next)
+        #expect(model.entry.date == Self.date(2025, 9, 15))
+        #expect(model.isRead == false)
+        #expect(model.showsFinishButton == true)
+        #expect(env.rawSnapshot() == snapshot)
+    }
+
+    // AC-64 boundary: isRead is read from the store on every access (changes when progress changes elsewhere)
+    @Test func ac64_isReadTracksStoreChanges() throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: try Self.moveHomepage(), youtube: try Self.youtube0713())
+        #expect(model.isRead == false)
+        env.defaults.set("2025/09/12", forKey: "readingProgress.lastSeenOld")
+        #expect(model.isRead == true)
+        #expect(model.showsFinishButton == false)
+        // the other testament's progress does not count
+        env.defaults.set("2025/09/11", forKey: "readingProgress.lastSeenOld")
+        env.defaults.set("2030/01/01", forKey: "readingProgress.lastSeenNew")
+        #expect(model.isRead == false)
+    }
+
+    // AC-65 (FR-4): pressing on a skipped entry records that entry's date; new testament records only lastSeenNew
+    @Test func ac65_markSeenRecordsShownEntryDate() async throws {
+        do {
+            let env = try Env(2026, 11, 22, 7)
+            defer { env.cleanup() }
+            let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                                  homepage: try Self.moveHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            model.markSeen()
+            #expect(env.store.storedProgress().lastSeenOld == Self.date(2025, 9, 12))
+            #expect(env.rawSnapshot() == ["2025/09/12", "2020/07/11", nil, nil])
+            #expect(model.isFinished == true)
+            #expect(model.showsFinishButton == false)
+            let snapshot = env.rawSnapshot()
+            model.markSeen()
+            #expect(env.rawSnapshot() == snapshot)
+        }
+        do {
+            let env = try Env(2026, 11, 22, 13)
+            defer { env.cleanup() }
+            let model = try Self.newModel(env, homepage: try Self.newHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            model.markSeen()
+            #expect(env.defaults.string(forKey: "readingProgress.lastSeenNew") == "2020/07/13")
+            #expect(env.defaults.object(forKey: "readingProgress.finishedDayNew") == nil)
+            #expect(env.defaults.object(forKey: "readingProgress.finishedDayOld") == nil)
+            #expect(env.rawSnapshot() == ["2025/09/10", "2020/07/13", nil, nil])
+        }
+    }
+
+    // AC-65 boundary: markSeen after a move records the moved-to entry, not the opened one
+    @Test func ac65_markSeenAfterMoveRecordsCurrentEntry() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let model = env.model(testament: .oldTestament, entry: try Self.oldEntry(),
+                              homepage: try Self.moveHomepage(), youtube: try Self.youtube0713())
+        await model.load()
+        await model.move(.next)   // 09/11 → 09/12
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        model.markSeen()
+        #expect(env.defaults.string(forKey: "readingProgress.lastSeenOld") == "2025/09/12")
+        #expect(model.isFinished == true)
+    }
+
+    // AC-66 (US-5, FR-10 screen): failed moves keep entry and state, set notice; success clears it
+    @Test func ac66_failedMoveKeepsScreenWithNotice() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()   // every search is the 0-entry page
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        let entry = model.entry
+        let shown = model.state
+        try Self.expectOld(shown)
+
+        var before = await homepage.requested.count
+        await model.move(.next)
+        #expect(model.notice == "다음 묵상을 찾지 못했습니다")
+        #expect(model.entry == entry)
+        #expect(model.state == shown)
+        let nextRequests = await Self.since(homepage, before)
+        #expect(nextRequests == [
+            "search=2025/09/12", "search=2025/09/13", "search=2025/09/14", "search=2025/09/15",
+            "search=2025/09/16", "search=2025/09/17", "search=2025/09/18",
+        ])
+        #expect(nextRequests.filter { $0.hasPrefix("no=") }.isEmpty)
+        #expect(model.isMoving == false)
+
+        before = await homepage.requested.count
+        await model.move(.previous)
+        #expect(model.notice == "이전 묵상을 찾지 못했습니다")
+        #expect(model.entry == entry)
+        #expect(model.state == shown)
+        #expect(await Self.since(homepage, before) == [
+            "search=2025/09/10", "search=2025/09/09", "search=2025/09/08", "search=2025/09/07",
+            "search=2025/09/06", "search=2025/09/05", "search=2025/09/04",
+        ])
+        #expect(model.isMoving == false)
+
+        await homepage.setSearch("2025/09/12", .failure(URLError(.notConnectedToInternet)))
+        before = await homepage.requested.count
+        await model.move(.next)
+        #expect(model.notice == "인터넷 연결을 확인해 주세요")
+        #expect(model.entry == entry)
+        #expect(model.state == shown)
+        #expect(await Self.since(homepage, before) == ["search=2025/09/12"])
+        #expect(model.isMoving == false)
         Self.expectStoreUntouched(env)
+
+        await homepage.setSearch("2025/09/12", .html(try Self.html("cast-search-date-20250912")))
+        await homepage.setArticle(15157, .html(try Self.html("cast-body-15155")))
+        await model.move(.next)
+        #expect(model.notice == nil)
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(Self.content(model.state)?.entry.articleNo == 15157)
+        #expect(model.isMoving == false)
+        Self.expectStoreUntouched(env)
+    }
+
+    // AC-67: moving re-finds the video (YouTube searched again for the new entry)
+    @Test func ac67_moveReloadsVideo() async throws {
+        let env = try Env(2026, 11, 22, 13)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        let youtube = try Self.youtube0713()
+        let model = try Self.newModel(env, homepage: homepage, youtube: youtube)
+        await model.load()
+        try Self.expectNew(model.state)
+        #expect(await youtube.requested.count == 1)
+
+        await model.move(.next)
+
+        #expect(model.entry.date == Self.date(2020, 7, 14))
+        #expect(model.entry.articleNo == 11481)
+        let c = try #require(Self.content(model.state))
+        #expect(c.entry.date == Self.date(2020, 7, 14))
+        #expect(c.testament == .newTestament)
+        #expect(c.headerTitle == "2020/07/14(화) 요한복음 6:1-21")
+        #expect(await youtube.requested.count == 2)
+        #expect(Self.describe(await homepage.requested) == ["no=11480", "search=2020/07/14", "no=11481"])
+    }
+
+    // AC-68: move is ignored while .loading and after finishing
+    @Test func ac68_moveIgnoredWhileLoadingOrFinished() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: homepage, youtube: try Self.youtube0713())
+
+        await model.move(.previous)
+        await model.move(.next)
+        #expect(await homepage.requested.count == 0)
+        #expect(model.state == .loading)
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(model.notice == nil)
+        #expect(model.isMoving == false)
+
+        await model.load()
+        model.markSeen()
+        #expect(model.isFinished == true)
+        let count = await homepage.requested.count
+        let state = model.state
+        await model.move(.previous)
+        await model.move(.next)
+        #expect(await homepage.requested.count == count)
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(model.state == state)
+        #expect(model.notice == nil)
+    }
+
+    // AC-68: in .networkError (article failed) move still works and loads the found entry
+    @Test func ac68_moveWorksFromNetworkError() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        await homepage.setArticle(15157, .failure(URLError(.notConnectedToInternet)))
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.state == .networkError)
+
+        await model.move(.previous)
+
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        #expect(Self.content(model.state)?.entry.articleNo == 15155)
+        #expect(Self.describe(await homepage.requested) == ["no=15157", "search=2025/09/11", "no=15155"])
+        #expect(model.notice == nil)
+        #expect(model.isMoving == false)
+        Self.expectStoreUntouched(env)
+    }
+
+    // AC-68 / [결정] 4: while a move search is running, isMoving is true and a second move / markSeen are ignored
+    @Test func ac68_moveInFlightBlocksSecondMove() async throws {
+        let env = try Env(2026, 11, 22, 7)
+        defer { env.cleanup() }
+        let gate = GatedHomepage(inner: try Self.moveHomepage())
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.showsFinishButton == true)
+        await gate.close()
+
+        let task = Task { await model.move(.previous) }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)
+        #expect(model.isMoving == true)
+        let count = await gate.count
+
+        await model.move(.next)
+        model.markSeen()
+        #expect(await gate.count == count)
+        #expect(model.isFinished == false)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+
+        await gate.open()
+        await task.value
+        #expect(model.isMoving == false)
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+    }
+}
+
+/// Wraps a fetcher; while closed, search requests suspend until `open()`. Article requests pass through.
+private actor GatedHomepage: DevotionHTMLFetching {
+    private let inner: any DevotionHTMLFetching
+    private var closed = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    private(set) var count = 0
+
+    init(inner: any DevotionHTMLFetching) { self.inner = inner }
+
+    var waitingCount: Int { waiting.count }
+
+    func close() { closed = true }
+
+    func open() {
+        closed = false
+        let pending = waiting
+        waiting = []
+        pending.forEach { $0.resume() }
+    }
+
+    private func park(_ c: CheckedContinuation<Void, Never>) { waiting.append(c) }
+
+    func fetchHTML(from url: URL) async throws -> String {
+        count += 1
+        let isSearch = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.contains(where: { $0.name == "search" }) ?? false
+        if closed && isSearch {
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                self.park(c)
+            }
+        }
+        return try await inner.fetchHTML(from: url)
     }
 }

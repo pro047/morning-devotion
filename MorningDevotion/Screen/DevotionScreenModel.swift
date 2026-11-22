@@ -12,38 +12,33 @@ final class DevotionScreenModel {
 
     private(set) var isFinished: Bool = false
     let testament: Testament
-    let entry: DevotionEntry
-    let mode: DevotionScreenMode
+    private(set) var entry: DevotionEntry
+    private(set) var isMoving: Bool = false
+    private(set) var notice: String?
 
-    var showsFinishButton: Bool { mode == .next && !isFinished }
+    /// Read on every access so it follows both the shown entry and the stored progress.
+    var isRead: Bool { store.storedProgress().isRead(entry.date, for: testament) }
+    var showsFinishButton: Bool { !isRead && !isFinished }
 
     private let store: ReadingProgressStore
     private let fetcher: any DevotionHTMLFetching
     private let searcher: any YouTubeSearchFetching
     private let apiKey: String?
-    private let calendar: Calendar
-    private let now: () -> Date
 
     init(
         testament: Testament,
         entry: DevotionEntry,
-        mode: DevotionScreenMode,
         store: ReadingProgressStore,
         fetcher: any DevotionHTMLFetching,
         searcher: any YouTubeSearchFetching,
-        apiKey: String?,
-        calendar: Calendar,
-        now: @escaping () -> Date
+        apiKey: String?
     ) {
         self.testament = testament
         self.entry = entry
-        self.mode = mode
         self.store = store
         self.fetcher = fetcher
         self.searcher = searcher
         self.apiKey = apiKey
-        self.calendar = calendar
-        self.now = now
     }
 
     func load() async {
@@ -74,11 +69,29 @@ final class DevotionScreenModel {
     }
 
     func markSeen() {
-        guard mode == .next, !isFinished, case .showing = state else { return }
-        let today = DevotionDate(localDayOf: now(), calendar: calendar)
+        guard !isRead, !isFinished, !isMoving, case .showing = state else { return }
         store.markSeen(testament, date: entry.date)
-        store.markFinished(testament, on: today)
         isFinished = true
+    }
+
+    /// Replaces the shown entry in place. A failed search keeps the current entry and state.
+    func move(_ direction: MoveDirection) async {
+        guard !isMoving, !isFinished else { return }
+        switch state {
+        case .showing, .networkError: break
+        case .loading: return
+        }
+        isMoving = true
+        notice = nil
+        let outcome = await AdjacentDevotionSearch.move(direction, from: entry.date, using: fetcher)
+        isMoving = false
+        switch outcome {
+        case .moved(let next):
+            entry = next
+            await load()
+        case .notFound, .networkError:
+            notice = AdjacentDevotionSearch.message(for: outcome, direction: direction)
+        }
     }
 
     func refreshIfStale() async {

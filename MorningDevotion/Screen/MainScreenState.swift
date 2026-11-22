@@ -43,36 +43,34 @@ nonisolated enum MainRowRules {
         NextDevotionPicker.testament(at: instant, calendar: calendar)
     }
 
-    /// Same-day refresh without network: only a `.ready` row changes, and only its `isRead`.
-    static func refreshed(
-        _ row: MainRowState,
-        lastSeen: DevotionDate,
-        finishedDay: DevotionDate?,
-        today: DevotionDate
-    ) -> MainRowState {
+    /// Refresh without network: only a `.ready` row changes, and only its `isRead` (date <= lastSeen).
+    static func refreshed(_ row: MainRowState, lastSeen: DevotionDate) -> MainRowState {
         guard case .ready(let content) = row else { return row }
-        let isRead = finishedDay == today && content.entry.date == lastSeen
+        let isRead = content.entry.date <= lastSeen
         return .ready(MainRowContent(testament: content.testament, entry: content.entry, isRead: isRead))
+    }
+
+    enum ReturnAction: Equatable, Sendable {
+        case keep(MainRowState)
+        case reload
+    }
+
+    /// One row on return to main. A `.ready` row is reloaded when the progress it was decided from changed.
+    static func returnAction(_ row: MainRowState, basis: DevotionDate?, lastSeen: DevotionDate) -> ReturnAction {
+        guard case .ready = row else { return .keep(row) }
+        if basis != lastSeen { return .reload }
+        return .keep(refreshed(row, lastSeen: lastSeen))
     }
 }
 
 nonisolated enum MainRowLoader {
-    /// Read branch (finished today): the entry of `lastSeen` itself. Otherwise: the next entry after `lastSeen`.
-    /// Any thrown error, or a read branch with no matching entry, becomes `.networkError`.
+    /// Always the next entry after `lastSeen`, unread. nil → `.noNextDevotion`, any thrown error → `.networkError`.
     static func load(
         _ testament: Testament,
         lastSeen: DevotionDate,
-        finishedDay: DevotionDate?,
-        today: DevotionDate,
         using fetcher: some DevotionHTMLFetching
     ) async -> MainRowState {
         do {
-            if finishedDay == today {
-                guard let entry = try await SeenDevotionSearch.find(on: lastSeen, using: fetcher) else {
-                    return .networkError
-                }
-                return .ready(MainRowContent(testament: testament, entry: entry, isRead: true))
-            }
             guard let entry = try await NextDevotionSearch.findNext(after: lastSeen, using: fetcher) else {
                 return .noNextDevotion
             }

@@ -12,6 +12,17 @@ struct DevotionScreenView: View {
 
     var body: some View {
         content
+            .toolbar {
+                ToolbarItemGroup(placement: .bottomBar) {
+                    Button("이전") { Task { await model.move(.previous) } }
+                        .disabled(navigationDisabled)
+                    if model.isMoving {
+                        ProgressView()
+                    }
+                    Button("다음") { Task { await model.move(.next) } }
+                        .disabled(navigationDisabled)
+                }
+            }
             .task { await model.load() }
             .onChange(of: model.isFinished) { _, finished in
                 if finished { dismiss() }
@@ -23,6 +34,11 @@ struct DevotionScreenView: View {
             }
     }
 
+    private var navigationDisabled: Bool {
+        if case .loading = model.state { return true }
+        return model.isMoving
+    }
+
     @ViewBuilder
     private var content: some View {
         switch model.state {
@@ -32,6 +48,7 @@ struct DevotionScreenView: View {
             showing(c)
         case .networkError:
             VStack(spacing: 16) {
+                noticeText
                 Text(model.state.message ?? "")
                 Button("다시 시도") { Task { await model.retry() } }
             }
@@ -42,10 +59,16 @@ struct DevotionScreenView: View {
     private func showing(_ c: DevotionScreenContent) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                noticeText
                 videoArea(c.video)
-                Text(c.headerDate)
-                    .font(.subheadline)
-                    .foregroundStyle(Theme.ink.opacity(0.7))
+                HStack {
+                    Text(c.headerDate)
+                        .font(.subheadline)
+                        .foregroundStyle(Theme.ink.opacity(0.7))
+                    if model.isRead {
+                        BadgeLabel(text: "읽음", tint: .green)
+                    }
+                }
                 Text(c.headerPassage)
                     .font(Theme.passageFont)
                     .foregroundStyle(Theme.ink)
@@ -70,6 +93,15 @@ struct DevotionScreenView: View {
             .padding()
         }
         .background(Theme.paper.ignoresSafeArea())
+    }
+
+    @ViewBuilder
+    private var noticeText: some View {
+        if let notice = model.notice {
+            Text(notice)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
     }
 
     @ViewBuilder

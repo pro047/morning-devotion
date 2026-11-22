@@ -65,6 +65,20 @@ struct MainScreenView: View {
             case .ready(let c):
                 Text(c.title)
                     .font(Theme.passageFont)
+                HStack {
+                    Button("이전") { Task { await model.move(testament, .previous) } }
+                    Button("다음") { Task { await model.move(testament, .next) } }
+                    if model.isMoving(testament) {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(model.isMoving(testament))
+                if let notice = model.notice(for: testament) {
+                    Text(notice)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             case .networkError:
                 Text(state.message ?? "")
                 Button("다시 시도") { Task { await model.retry(testament) } }
