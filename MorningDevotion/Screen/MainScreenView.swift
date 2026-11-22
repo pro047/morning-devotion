@@ -136,9 +136,6 @@ struct MainScreenView: View {
 
     @ViewBuilder
     private func movingAndNotice(_ testament: Testament) -> some View {
-        if model.isMoving(testament) {
-            ProgressView().controlSize(.small)
-        }
         if let notice = model.notice(for: testament) {
             Text(notice)
                 .font(.footnote)
