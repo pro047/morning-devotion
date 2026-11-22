@@ -1,6 +1,6 @@
 # morning-devotion 핸드오프
 
-최종 갱신: 2026-11-20
+최종 갱신: 2026-11-22
 
 ## 지뢰
 
@@ -21,6 +21,10 @@
 - **sap 단계 샌드박스 안에서 Xcode `xcodeproj` 는 `project.xcproj` 를 저장하지 못한다** (실측 2026-11-20 M4 impl): `Failed to write project file: You don’t have permission to save the file “project.xcproj”` exit 1 → impl BLOCKED. 같은 명령을 샌드박스 밖(scratchpad 복사본)에서 돌리면 exit 0. 같은 폴더에 `cp`·`printf` 쓰기는 샌드박스 안에서도 성공(DESIGN.md:55). `.sap/config` 의 `SANDBOX_EXCLUDE=/Applications/Xcode.app/Contents/Developer/usr/bin/xcodeproj:*` (3246c30) 뒤 재실행에서 통과
 - **PATH 의 `xcodeproj` 는 Homebrew CocoaPods 도구다** (실측 2026-11-20): `/opt/homebrew/bin/xcodeproj group …` → `Unknown command: group`. Xcode 의 프로젝트 편집 CLI 는 `/Applications/Xcode.app/Contents/Developer/usr/bin/xcodeproj` — 전체 경로로 부른다. `SANDBOX_EXCLUDE` 패턴도 전체 경로라 `xcodeproj …` 로 부르면 안 걸린다 (추정)
 - **`sap worktree` 는 메인에 미커밋 변경이 있으면 런처 세션에서 중단된다** (실측 2026-11-20): `이대로 계속? (y/N)` 을 `/dev/tty` 로 읽어 tty 없음 → 중단. 커밋하거나 사람 확인 뒤 `WT_YES=1`
+- **이 Xcode 27.2 에는 Simulator.app 이 없다** (실측 2026-11-20): `open -a Simulator` → "Unable to find application", Xcode.app 안·Spotlight(`com.apple.iphonesimulator`)에도 없음, `idb`·`applesimutils` 미설치. 런처는 `simctl` 로 부팅·설치·실행·스크린숏만 가능하고 탭·스크롤은 못 한다 → 화면 조작이 필요한 확인은 진성이 Xcode ⌘R 로 한다
+- **`.pipeline/` 은 gitignore 다** (실측 2026-11-20 `git check-ignore` → `.gitignore:3`): CHECKLIST 체크는 커밋되지 않고 이 맥에만 남는다
+- **SwiftUI `.serif` 디자인은 한글에서 궁서처럼 보인다** (2026-11-22 진성 육안): 시뮬레이터 런타임 시스템 폰트 폴더의 한글 글꼴은 `AppleSDGothicNeo.ttc`·`AppleGothic.otf` 뿐(실측 `find`). 명조가 필요하면 폰트 파일을 번들해야 한다
+- **카페 등 공용 Wi-Fi 에선 실기기 무선 연결이 안 된다** (2026-11-22 실측): 같은 Wi-Fi 인데 `devicectl` `tunnelState: unavailable`, `_remotepairing._tcp` 0건, ARP 0건 — client isolation 추정. 아이폰 개인용 핫스팟에 맥을 붙이니 `_remotepairing` 1건·`tunnelState: disconnected` 로 설치 성공. 케이블도 된다
 
 ## 확정 결정
 
@@ -46,48 +50,60 @@
 | 2026-11-20 | M4 범위 밖: 시간대 전환 버튼(9장 2번)·다른 해 영상(9장 5번)·임베드 거부 시 유튜브 앱(9장 3번)·설교문 굵은 글씨 | `docs/prd/f-1-m4-screen.md` 6장 |
 | 2026-11-20 | M4 설계 [결정] D:405 "글은 받았지만 읽지 못한 경우(파싱 실패·글번호 없음·HTTP 오류)도 '인터넷 연결을 확인해 주세요'+'다시 시도'" 에 y, D:406 "백그라운드 복귀 때 시간대·날짜가 바뀌었으면 다시 불러온다(`refreshIfStale`)" 에 y | `.pipeline/f-1-m4-screen/DESIGN.md:405-406`, `APPROVALS.md`, AC-19·AC-21 |
 | 2026-11-20 | sap 단계 에이전트가 Xcode `xcodeproj` 를 샌드박스 밖에서 돌리게 한다 (`SANDBOX_EXCLUDE`, 이번 주행만 런처가 대신 돌리는 A안 대신 B안) | 커밋 3246c30, `.sap/config` |
+| 2026-11-20 | F-3 메인 화면: 앱을 열면 메인(구약·신약 두 줄, 날짜·본문 제목). 시간과 관계없이 둘 다 열 수 있다(12시 규칙은 "지금" 배지에만). 읽음은 **표시만**(기존 `finishedDay`), 읽은 줄을 누르면 오늘 읽은 묵상 다시 보기, 한쪽 실패는 그 줄에만 안내+다시 시도 | `docs/prd/f-3-main-page.md` 1~6장, 커밋 f84f455 |
+| 2026-11-20 | "오늘 구약(신약) 묵상을 마쳤습니다" 화면을 없앤다 — "다 봤어요" 뒤 바로 메인, 그 줄에 "읽음". 다시 보기 화면엔 "다 봤어요" 숨김. 메인 복귀 때 목록 재검색은 날짜가 바뀌었을 때만 (위 A안 행의 화면 부분을 대체, "그날 다음 묵상을 안 보여줌"은 유지) | `docs/prd/f-3-main-page.md` 9장, `docs/prd/f-1-next-devotion.md` 9장 2번 |
+| 2026-11-22 | F-3 설계 [결정] D:378(읽음 날짜 검색 결과 없음 → 인터넷 오류 표시)·D:379(메인이 찾은 글번호를 그대로 열고 묵상 화면은 재검색 안 함)·D:380(화면 위 본문 제목은 목록 항목 값) 에 y. 기존 `DevotionScreenModelTests` @Test 37→30 으로 다시 씀(설계 §6 표) | `.pipeline/f-3-main-page/DESIGN.md:307,378-380`, `APPROVALS.md`, 커밋 f29b2e2 |
+| 2026-11-22 | 디자인: 메인 카드·"다 봤어요"는 Liquid Glass(`glassEffect`·`glassProminent`), 묵상 화면은 종이 배경(라이트/다크 두 벌), 글꼴은 시스템 고딕(폰트 파일 안 넣음) | `MorningDevotion/Screen/Theme.swift`, 커밋 9b760d4 |
+| 2026-11-22 | 스타일 커밋은 PR 없이 main 에 직접 push (진성 "커밋 푸시") — 파이프라인 결과만 PR 로 병합하는 규칙과 별개 | 커밋 9b760d4 |
+| 2026-11-22 | 버전 태그는 앱 `MARKETING_VERSION` 과 맞춘다 (`v0.1.0` ↔ `0.1.0`). 번들 ID `com.pro047.morningdevotion`(테스트 `.tests`), 서명은 Automatic | `project.xcproj`, 커밋 f2fbe54, 태그 `v0.1.0` (push 완료) |
+| 2026-11-22 | 실기기 서명은 **무료 Personal Team 유지** — profile 7일 만료라 매주 다시 설치 (유료 연 99달러는 보류). 다시 설치는 덮어쓰기, 앱을 지우지 않는다(지우면 진행 기록 사라짐) | 이 세션 대화 (진성 결정) |
 
 ## 머신 상태
 
-기준: 2026-11-20 18:45 KST
+기준: 2026-11-22 17:08 KST (브랜치·실기기 줄은 19:40 갱신)
 
-- 브랜치 `main` = `origin/main` = `22d1aad` (PR #2 병합 — M4). `pipeline/f-1-m4-screen` 로컬·원격 삭제 — 실측 `git push origin --delete`, `git branch -d`. 병합 후 main 에서 `xcodebuild test`(TEST_CMDS, -quiet 없이) 210 tests / 12 suites 통과 `TEST SUCCEEDED` (실측)
-- 시뮬레이터 iPhone 17 / iOS 27.2 (`62A98FA5…`): 꺼 둠. 확인용 빌드 앱이 설치돼 있고 UserDefaults 에 `readingProgress.lastSeenOld = 2025/09/11` 이 남아 있다 (D:295 확인 흔적, 기본값 아님) — 실측 `-probeRead` 출력. 수동 확인 전에 `simctl uninstall` 로 지운다
-- worktree 없음 (`git worktree remove` 실측, `git worktree list` 메인 1개). 산출물: `.pipeline/f-1-m1-next-pick/`(40파일)·`f-1-m2-read-and-progress/`(51파일)·`f-1-m3-video/`(10파일, **복원본** — 목록·출처는 그 안 `RESTORED.md`)·`f-1-m4-screen/`(47파일, worktree 에서 메인으로 복사 — 파일 수 일치 실측). M4 실행 보관 3개: `~/.local/state/sap/archive/morning-devotion-pipeline-f-1-m4-screen/f-1-m4-screen/` (실측 `ls`)
-- sap 엔진: M2 주행 9671033, M3 주행 b2d94d0, 지금 설치본 **`5c105a7`** (2026-11-20 16:15 설치, 스킬 레포 `main` HEAD 와 같음) — 실측 `sap version`, `readlink ~/.local/share/sap/current`, `diff` 설치본↔레포 `orchestrate.sh`·`prompts/impl.md` 차이 0. 재시도 재개(`390c768`)·impl 빌드 오류 BLOCKED(`bc756f1`)·die 시 검증 직전 복원(`5c105a7`) 포함, red 게이트 셸 판정은 그대로 (지뢰 두 항목 참고)
+- 브랜치 `main` = `origin/main` = `f2fbe54` = 태그 `v0.1.0` (서명·번들 ID·버전 설정 커밋, main 직접 push). 그 아래 `9b760d4` = 스타일 커밋. 그 앞 `12c3977` = PR #3 병합(F-3). `pipeline/f-3-main-page` 로컬·원격 삭제, worktree 제거 — 실측 `git branch -d`, `git push origin --delete`, `git worktree list` 메인 1개. main 에서 `xcodebuild test`(-quiet 없이) 242 tests / 15 suites 통과 `TEST SUCCEEDED` (실측, 스타일 변경 뒤 마지막 실행)
+- 실기기 iPhone 14 Pro / iOS 27.2 (`00008120-000451DC3A98C01E`, 이름 "iPhone (7)", 페어링·개발자 모드 켬): `v0.1.0` 설치, 진성이 메인 두 줄·영상 재생 확인 (2026-11-22). 무료 팀(`KWJ27RTR92`) 서명 → **2026-11-29 무렵 만료 (추정)**. 다시 설치:
+  1. `xcodebuild build -project MorningDevotion.xcodeproj -scheme MorningDevotion -destination id=00008120-000451DC3A98C01E -allowProvisioningUpdates -derivedDataPath build-device`
+  2. `xcrun devicectl device install app --device 00008120-000451DC3A98C01E build-device/Build/Products/Debug-iphoneos/MorningDevotion.app`
+  - `build-device/` 는 gitignore. 연결은 케이블 또는 아이폰 핫스팟 (지뢰 "공용 Wi-Fi")
+- 시뮬레이터 iPhone 17 / iOS 27.2 (`62A98FA5…`): 꺼 둠 (실측 `simctl shutdown`). 스타일 빌드 앱이 설치돼 있고 데이터는 남아 있다 — 2026-11-20 에 지운 뒤 진성이 신약 "다 봤어요"를 눌러 2026-11-22 메인 신약 줄이 `2020/07/14 요한복음 6:1-21` (실측 스크린숏, 저장값 자체는 추정 `lastSeenNew = 2020/07/13`). 오전 실물 확인 전에 `simctl uninstall` 로 지운다
+- 맥 메모리 (실측 2026-11-22 17:03): RAM 16GB, 스왑 11.0GB 중 10.0GB 사용, Claude 프로세스 11개 합 3.2GB, Xcode 0.5GB(빌드 전). 빌드·시뮬레이터가 붙으면 맥이 멈추다시피 한다(진성 체감). 빌드·시뮬레이터 자체 사용량은 미측정
+- 미커밋 (2026-11-22 19:40 실측 `git status`): `.gitignore`(`build-device/`), `.claude/handoff.md`·`handoff-archive.md`. 커밋 여부 진성 결정 대기
+- 산출물: `.pipeline/f-1-m1-next-pick/`(40파일)·`f-1-m2-read-and-progress/`(51파일)·`f-1-m3-video/`(10파일, **복원본** — `RESTORED.md`)·`f-1-m4-screen/`(47파일)·`f-3-main-page/`(54파일, worktree 에서 복사 — `diff -rq` 동일 실측). `.pipeline/` 은 gitignore 라 체크리스트 체크는 이 맥에만 있다
+- sap 엔진: 지금 설치본 **`9023b42`** (2026-11-20 21:51 설치) — 실측 `sap version`, `readlink ~/.local/share/sap/current`. 이전 기록 `5c105a7` 과 다르고, 스킬 레포 HEAD 와 같은지·무엇이 바뀌었는지는 미확인. F-3 주행은 이 엔진으로 완주(재시도 재개·impl BLOCKED 경로는 발동 안 함 — 여전히 실주행 미검증)
 - `documents-86` 에 보낸 것: red 게이트가 빌드 실패로 통과·재시도 승인 뒤 기준선부터 도는 문제 (msg_id 8324a7c9…). 답: 둘 다 코드 확인(orchestrate.sh:2059-2079, :2253), 수정은 그쪽 사용자 결정 대기 — 그 세션의 메시지가 근거
 
 ## 현재 우선순위
 
-1. F-1 M4 실물 확인 (`.pipeline/f-1-m4-screen/CHECKLIST.md`): [사실] 9개 — 실제 키를 `Secrets.xcconfig` 에 넣고 D:414 Info.plist 키, D:415·416 영상 재생, D:417 화면 배치, D:418 테스트 중 네트워크 없음, D:419 실제 날짜 검색. Attention 33개 중 #36(any→some 컴파일)·D:413(Secrets 없이 빌드)은 green 빌드 통과로 사실상 해소 (추정 — 체크는 사람이)
-2. M3 실물 확인 (`.pipeline/f-1-m3-video/CHECKLIST.md`): D:212 실제 `search.list` 가 이 URL·키로 fixture 같은 JSON 을 주나, D:213 틀린 키·할당량 초과가 non-2xx 인가, D:214 2020 신약 다른 날 영상 제목도 같은 형식인가 — M4 키 연결 완료 — 지금 가능. D:215·D:216 은 해소(2026-11-20 표본 20건 영상 id 1개씩 실측, green 에서 JSON fixture 테스트 통과)
-3. 책 이름 표기 전수 조사 — 실측 줄임 사례 `2021/01/08(금) “고린도전 6:12-20”` 1건뿐, 나머지 표기 미측정 (M3 범위에서도 뺌 — 신약 2020 묶음에 사례 없음. 대체 영상 검색이 줄임 표기에 걸리면 그때)
-4. M1 Attention 중 열린 것: D:282 다른 연도·책 제목도 같은 문법인가, D:250 다른 목록 페이지도 `class=subjectColor>` 마크업인가 (2026-11-20 날짜 검색 페이지 2개에서 `subjectColor` 1개씩 실측 — 부분 근거), D:249 MainActor 경고 (M2 attempt 1 빌드에 `DevotionModels.swift:58` 경고 4건 실측 → 2026-11-20 새 derivedData `build`·`build-for-testing` 에선 Swift 경고 0건 실측. 사라진 이유 미확인)
-5. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
-6. 미확인: 새 fixture 3개(`cast-search-date-*.html`)는 작업 폴더에 CRLF 로 있고 git 이 LF 로 저장한다는 경고가 나왔다 (실측 `git add` 경고). 파서가 CRLF·LF 에서 같은 결과인지, 기존 fixture 도 같은지 미확인 — 새로 clone 한 곳에서 테스트가 다르게 나오면 여기부터
-7. 메인 페이지 범위 확정(2026-11-20 진성, PRD 전): 이유 — 앱을 열자마자 설교 본문이 나와 당황스럽다. (1) 앱을 열면 메인 화면, 다음 오전(구약)·오후(신약) 말씀의 날짜·본문 제목 표시 (2) 각 말씀 옆에 오늘 "다 봤어요" 여부 **표시만** — 기존 `finishedDay` 재사용, 메인에서 체크하는 기능 없음 (3) 누르면 지금의 묵상 화면으로 이동 — 시간과 무관하게 둘 다 열 수 있음(12시 규칙은 화면 선택에 쓰지 않음). 다음: `/prd` 로 기능 PRD
+1. 실기기 다시 설치 — 무료 팀 profile 7일 만료, 다음은 **2026-11-29 무렵** (추정, 2026-11-22 설치 기준). 앱을 지우지 말고 덮어쓴다. 명령은 머신 상태 "실기기" 줄
+2. 오전 실물 확인 (M4 `.pipeline/f-1-m4-screen/CHECKLIST.md`): D:415 2025/09/11 영상 앱 안 재생(오류 153 없음), D:416 2020/07/13 영상 **재생 버튼**(플레이어 표시까지는 2026-11-20 실측), D:419 빈 저장소 오전 실행 시 구약 2025/09/11. 직전에 `simctl uninstall`. F-3 뒤로는 메인 줄을 눌러 들어간다. 화면은 Xcode ⌘R 로만 볼 수 있다 (지뢰 "Simulator.app 없음")
+3. F-3 남은 실물 확인 (`.pipeline/f-3-main-page/CHECKLIST.md`): D:387 정오 경계에서 "지금" 이동, D:391 자정 넘겨 복귀 시 두 줄 재로딩, D:390 늘어난 suite 3개의 이름(개수 12→15 는 실측). D:383~386·388·389 는 2026-11-22 확인
+4. M3 실물 확인 (`.pipeline/f-1-m3-video/CHECKLIST.md`): D:212 실제 `search.list` 가 이 URL·키로 fixture 같은 JSON 을 주나, D:213 틀린 키·할당량 초과가 non-2xx 인가, D:214 2020 신약 다른 날 영상 제목도 같은 형식인가 — 키 연결 완료라 지금 가능
+5. 책 이름 표기 전수 조사 — 실측 줄임 사례 `2021/01/08(금) “고린도전 6:12-20”` 1건뿐, 나머지 표기 미측정 (대체 영상 검색이 줄임 표기에 걸리면 그때)
+6. M1 Attention 중 열린 것: D:282 다른 연도·책 제목도 같은 문법인가, D:250 다른 목록 페이지도 `class=subjectColor>` 마크업인가 (날짜 검색 페이지 3개에서 `subjectColor` 1개씩 실측 — 부분 근거), D:249 MainActor 경고 (사라진 이유 미확인)
+7. 미확인: `xcodebuild test` 가 테스트 0개일 때 실패하는지 (sap SKILL.md:219 요구) — 추정만 있음
+8. 미확인: 새 fixture 3개(`cast-search-date-*.html`) CRLF·LF 차이가 파서 결과를 바꾸는지 — 새로 clone 한 곳에서 테스트가 다르게 나오면 여기부터
+9. 보류: 글꼴 — 지금 시스템 고딕. Pretendard·명조(Noto Serif KR 등) 번들은 파일 추가·Info.plist `UIAppFonts`·라이선스 확인이 필요해 미룸(진성 "일단 시스템 고딕"). 파일 크기·라이선스 미확인
+10. F-2 지난 묵상 목록 — PRD 미작성 (`docs/prd/00-project.md` 기능 목록)
 
-## 최신 스트림 — 2026-11-20: sap 설치본 판정 → F-1 M4 파이프라인 완주 (resolved)
+## 최신 스트림 — 2026-11-22: v0.1.0 태그·실기기 첫 설치 (resolved)
 
-**요청**: `/next` → 우선순위 1번 완료 조건 2(설치본 판정 + 운용 규칙 지뢰) → "파이프라인 돌리자" → 병합 전 핸드오프 갱신
+**요청**: `/next` → "지금 버전을 v0.1.0 으로 태그하고 실제 기기에 받아보자" → 무선 연결 진단 → 영상 출처·할당량 질문 → 유료 가입 보류 → gitignore·핸드오프 반영
 
-**결정**: 확정 결정 표의 2026-11-20 행 2개 (M4 [결정] D:405·406 y · `SANDBOX_EXCLUDE` B안). worktree 생성 전 핸드오프 먼저 커밋(진성 선택)
+**결정**: 확정 결정 표의 2026-11-22 행 2개 (버전 태그 = `MARKETING_VERSION`, 무료 Personal Team 유지·매주 재설치). 유료 Developer Program(연 99달러)은 보류 — 원화 금액은 미확인
 
 **변경**
-- 7ccb2a8 `docs: 핸드오프 갱신 (sap 5c105a7 판정)` — 머신 상태 sap 설치본, 지뢰 "런처 세션 sap run"(390c768 수정)·"red 게이트"(셸 미수정 + 운용 규칙)
-- 3246c30 `chore: sap 샌드박스 밖에서 Xcode xcodeproj 실행 허용` — `.sap/config` `SANDBOX_EXCLUDE` 1줄 (`sap doctor` 통과, WARN 1)
-- b0c122e (`pipeline/f-1-m4-screen`, AUTO_COMMIT) — 소스 12·테스트 4·`App.xcconfig`·`MorningDevotion-Info.plist`·`project.xcproj`(xcconfig 참조·Debug/Release base configuration·`INFOPLIST_FILE`)
+- f2fbe54 `chore: v0.1.0 실기기 설치용 서명·번들 ID·버전 설정` — `project.xcproj` 1파일 (+5 −4): `DEVELOPMENT_TEAM`(Xcode UI 가 기록), 번들 ID 2개, `MARKETING_VERSION` 0.1.0 ×2. main push, 태그 `v0.1.0`(annotated) push — 실측 `git ls-remote --tags origin`
+- 미커밋: `.gitignore` `build-device/` 추가, 이 핸드오프·아카이브
 
-**주행** (실행 ID 3개, 장부·보관 참고)
-1. 16:30 설계 → judge 반박 1 → 설계 되감기 1회 → judge 반박 0·미확인 25 → [결정] 2개로 exit 4 → 진성 y 중계 (`sap approve --relayed y`)
-2. 16:54 기준선 통과 → verify(테스트 74개 @Test, VERIFY.md) → red 통과 → impl BLOCKED exit 3 (project.xcproj 쓰기 거부)
-3. 17:20 `RESUME_FROM=impl` → impl → green 통과 → DONE exit 0 (17:23)
-
-**지뢰**: 신규 3개 (샌드박스 xcodeproj · PATH 의 CocoaPods xcodeproj · sap worktree tty 중단)
+**지뢰**: 지뢰 섹션 "공용 Wi-Fi 에선 실기기 무선 연결이 안 된다" (이번에 밟음)
 
 **실측**
-- sap 설치본 5c105a7 = 스킬 레포 HEAD (`diff` 0). 재시도 재개 `orchestrate.sh:2129-2131,2318`, impl 빌드 오류 BLOCKED `prompts/impl.md:39-42` (코드 확인)
-- red_out.txt `error:` 26줄 전부 `cannot find '…' in scope` — 정상 red (지뢰의 운용 규칙 첫 적용)
-- 샌드박스 원인 판별: scratchpad 복사본에서 Xcode xcodeproj `group add-file` exit 0, diff `{ "path": "App.xcconfig" }` 1줄
-- green: `xcodebuild test … -quiet` 통과, `test_out.txt` `error:` 0줄. 통과·실패 테스트 개수는 미측정(-quiet)
-- 재시도 재개(390c768)·impl 빌드 오류 BLOCKED(bc756f1)는 이번 주행에서 발동하지 않음 — 여전히 실주행 미검증
+- 회귀: `xcodebuild test -scheme MorningDevotion -destination id=62A98FA5…` → `242 tests in 15 suites passed`, `TEST SUCCEEDED` (`| tail` 파이프라 종료 코드는 문구로 판단)
+- 기기 빌드: `xcodebuild build … -allowProvisioningUpdates` exit 0, `BUILD SUCCEEDED`, 서명 `Apple Development: pro047@naver.com` (인증서는 이 빌드 중 자동 생성 — 직전 `find-identity` 0개)
+- 설치: `devicectl device install app` → `App installed`, `bundleID: com.pro047.morningdevotion`. 진성이 실기기에서 메인 두 줄·묵상 화면 영상 재생 확인 (완료 조건 b)
+- 영상 ID 저장 없음 — `UserDefaults` 사용처는 `ReadingProgressStore.swift` 뿐(실측 grep). 검색 경로 묵상은 화면을 열 때마다 `search.list` 1회
+- 할당량: Google 문서 기본 10,000 단위/일, `search.list` 비용은 판본마다 100 단위 또는 별도 하루 100회 — 어느 쪽이든 약 100회/일, 태평양 자정(11월 = KST 17:00) 초기화. 이 키의 콘솔 값은 미확인
+- 범위 밖 관찰(안 고침): `DevotionScreenModel.swift:91` 키가 비면 글 페이지 iframe 이 있어도 영상 없음 — 키 검사가 R-1 보다 먼저. PRD 의도인지 미확인 (확정 결정 표 "API 키 없음은 검색 없이 '영상을 찾지 못했습니다'" 행과 관련)
+- `rm -rf build-device` 는 권한 거부 — 폴더는 남아 있고 gitignore 로 처리

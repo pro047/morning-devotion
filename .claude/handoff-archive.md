@@ -128,3 +128,55 @@
 - 저장 키는 지금 `readingProgress.lastSeenOld/New` 2개뿐, 묵상 날짜만 저장 (코드 확인 `ReadingProgressStore.swift:13-14,35`) — A안이 저장 키를 늘리는 근거
 - 문서·fixture 에 API 키 문자열(`AIza`) grep 0건
 - 검증: 코드 변경 없음 — 테스트 미실행
+
+<!-- 2026-11-22 이동 (/done) -->
+## 최신 스트림 — 2026-11-20: sap 설치본 판정 → F-1 M4 파이프라인 완주 (resolved)
+
+**요청**: `/next` → 우선순위 1번 완료 조건 2(설치본 판정 + 운용 규칙 지뢰) → "파이프라인 돌리자" → 병합 전 핸드오프 갱신
+
+**결정**: 확정 결정 표의 2026-11-20 행 2개 (M4 [결정] D:405·406 y · `SANDBOX_EXCLUDE` B안). worktree 생성 전 핸드오프 먼저 커밋(진성 선택)
+
+**변경**
+- 7ccb2a8 `docs: 핸드오프 갱신 (sap 5c105a7 판정)` — 머신 상태 sap 설치본, 지뢰 "런처 세션 sap run"(390c768 수정)·"red 게이트"(셸 미수정 + 운용 규칙)
+- 3246c30 `chore: sap 샌드박스 밖에서 Xcode xcodeproj 실행 허용` — `.sap/config` `SANDBOX_EXCLUDE` 1줄 (`sap doctor` 통과, WARN 1)
+- b0c122e (`pipeline/f-1-m4-screen`, AUTO_COMMIT) — 소스 12·테스트 4·`App.xcconfig`·`MorningDevotion-Info.plist`·`project.xcproj`(xcconfig 참조·Debug/Release base configuration·`INFOPLIST_FILE`)
+
+**주행** (실행 ID 3개, 장부·보관 참고)
+1. 16:30 설계 → judge 반박 1 → 설계 되감기 1회 → judge 반박 0·미확인 25 → [결정] 2개로 exit 4 → 진성 y 중계 (`sap approve --relayed y`)
+2. 16:54 기준선 통과 → verify(테스트 74개 @Test, VERIFY.md) → red 통과 → impl BLOCKED exit 3 (project.xcproj 쓰기 거부)
+3. 17:20 `RESUME_FROM=impl` → impl → green 통과 → DONE exit 0 (17:23)
+
+**지뢰**: 신규 3개 (샌드박스 xcodeproj · PATH 의 CocoaPods xcodeproj · sap worktree tty 중단)
+
+**실측**
+- sap 설치본 5c105a7 = 스킬 레포 HEAD (`diff` 0). 재시도 재개 `orchestrate.sh:2129-2131,2318`, impl 빌드 오류 BLOCKED `prompts/impl.md:39-42` (코드 확인)
+- red_out.txt `error:` 26줄 전부 `cannot find '…' in scope` — 정상 red (지뢰의 운용 규칙 첫 적용)
+- 샌드박스 원인 판별: scratchpad 복사본에서 Xcode xcodeproj `group add-file` exit 0, diff `{ "path": "App.xcconfig" }` 1줄
+- green: `xcodebuild test … -quiet` 통과, `test_out.txt` `error:` 0줄. 통과·실패 테스트 개수는 미측정(-quiet)
+- 재시도 재개(390c768)·impl 빌드 오류 BLOCKED(bc756f1)는 이번 주행에서 발동하지 않음 — 여전히 실주행 미검증
+
+<!-- 2026-11-22 이동 (/done) -->
+## 최신 스트림 — 2026-11-20~22: M4 실물 확인 일부 → F-3 메인 화면 PRD·파이프라인·병합 → 디자인 스타일 (resolved)
+
+**요청**: `/next` → M4 실물 확인(Claude 몫 2개) → 수동 확인 중 "메인 페이지가 필요" → 범위 확정 → `/prd` → 파이프라인 → 병합 → 디자인 스타일 → 글꼴 교체 → 커밋·push
+
+**결정**: 확정 결정 표의 2026-11-20 행 2개, 2026-11-22 행 3개
+
+**변경**
+- f84f455 `docs: F-3 메인 화면 PRD 추가` — `docs/prd/f-3-main-page.md` 신규, `00-project.md` 기능 목록 F-3, `f-1-next-devotion.md` 9장 2번 해소 기록, 핸드오프 메모
+- f29b2e2 (`pipeline/f-3-main-page`, AUTO_COMMIT) — 소스 8·테스트 4 (`SeenDevotionSearch`, `MainScreen{State,Model,View}`, `DevotionScreen*`, `ContentView`)
+- 12c3977 PR #3 병합 (merge commit, `--delete-branch` 없이 → 산출물 복사 뒤 worktree·브랜치 수동 정리)
+- 9b760d4 `feat: 메인·묵상 화면 디자인 스타일 적용 (Liquid Glass + 종이 배경)` — `Theme.swift` 신규, `MainScreenView`·`DevotionScreenView`
+
+**주행** (F-3, 엔진 9023b42)
+1. 2026-11-22 15:4x 설계 → judge 반박 3(차단 2: 반대쪽 저장 키 기본값 생성, 화면 제목 출처) → 설계 되감기 1회 → judge 반박 0·미확인 9 → [결정] 3개로 exit 4 → 진성 y 중계
+2. 16:04 기준선 녹색 → verify(`DevotionScreenModelTests` 37→30 포함) → red(`cannot find 'SeenDevotionSearch' in scope` 20줄 — 정상 red, 운용 규칙 적용) → impl 시도 1 → green → DONE (16:19)
+
+**실측**
+- M4 D:414: 실제 키 빌드 `.app/Info.plist` 에 `YouTubeAPIKey`·`UIApplicationSceneManifest`·`UILaunchScreen` 각 1줄, 값 39자가 `Secrets.xcconfig` 와 일치 (값 미출력)
+- M4 D:418(부분): `xcodebuild test` 중 0.2초 간격 `lsof -i -a -p` — 앱 프로세스 23회 포착, 소켓 0개. Swift Testing 에서 `XCTestConfigurationFilePath` 설정 여부는 `MyApp.swift:7` 분기와 결과로 본 추정
+- M4 D:416(부분)·D:417: 빈 저장소 19:08 실행 스크린숏 — 신약 2020/07/13 플레이어 표시, 영상→날짜·본문·찬송·설교문 순서. "다 봤어요"는 진성 육안
+- F-3 D:388·389: `search=2025/09/11&shwhere=subject` HTTP 200, `subjectColor` 1개 `2025/09/11(목) “잠언 23:24-35”` → `no=15155`, 글 15155 `<본문>` `잠언 23:24-35`
+- F-3 테스트: worktree·병합 후 main 모두 242 tests / 15 suites 통과 (병합 전 210 / 12)
+- 시뮬레이터 상태 표시줄 시각은 Mac 시각을 따른다 (7:08 표시 = 19:08 KST)
+- iOS 27.2 SDK 에 `glassEffect(_:in:)`·`GlassEffectContainer(spacing:)`·`Glass.regular/.clear/.interactive()`·버튼 스타일 `.glass`·`.glassProminent` 있음 (swiftinterface grep)
