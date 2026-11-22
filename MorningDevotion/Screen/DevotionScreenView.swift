@@ -43,20 +43,33 @@ struct DevotionScreenView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 videoArea(c.video)
-                Text(c.headerDate).font(.headline)
-                Text(c.headerPassage).font(.title3)
+                Text(c.headerDate)
+                    .font(.subheadline)
+                    .foregroundStyle(Theme.ink.opacity(0.7))
+                Text(c.headerPassage)
+                    .font(Theme.passageFont)
+                    .foregroundStyle(Theme.ink)
                 if let hymn = c.article.hymn {
                     Text(hymn)
+                        .font(.callout)
+                        .foregroundStyle(Theme.ink.opacity(0.8))
                 }
+                Divider()
                 Text(c.article.sermon)
+                    .font(Theme.sermonFont)
+                    .lineSpacing(Theme.sermonLineSpacing)
+                    .foregroundStyle(Theme.ink)
                 if model.showsFinishButton {
                     Button("다 봤어요") { model.markSeen() }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.large)
                         .frame(maxWidth: .infinity)
+                        .padding(.top, 8)
                 }
             }
             .padding()
         }
+        .background(Theme.paper.ignoresSafeArea())
     }
 
     @ViewBuilder

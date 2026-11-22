@@ -12,12 +12,17 @@ struct MainScreenView: View {
 
     var body: some View {
         TimelineView(.everyMinute) { _ in
-            VStack(spacing: 16) {
-                row(.oldTestament)
-                row(.newTestament)
+            ScrollView {
+                GlassEffectContainer(spacing: 16) {
+                    VStack(spacing: 16) {
+                        row(.oldTestament)
+                        row(.newTestament)
+                    }
+                }
+                .padding()
             }
-            .padding()
         }
+        .background(Theme.mainBackground.ignoresSafeArea())
         .navigationTitle("묵상")
         .task { await model.load() }
         .onChange(of: scenePhase) { _, phase in
@@ -47,10 +52,11 @@ struct MainScreenView: View {
             HStack {
                 Text(testament.displayName).font(.headline)
                 if model.isNow(testament) {
-                    Text("지금").font(.caption).foregroundStyle(.tint)
+                    BadgeLabel(text: "지금", tint: .orange)
                 }
+                Spacer()
                 if case .ready(let c) = state, c.isRead {
-                    Text("읽음").font(.caption).foregroundStyle(.secondary)
+                    BadgeLabel(text: "읽음", tint: .green)
                 }
             }
             switch state {
@@ -58,6 +64,7 @@ struct MainScreenView: View {
                 ProgressView()
             case .ready(let c):
                 Text(c.title)
+                    .font(Theme.passageFont)
             case .networkError:
                 Text(state.message ?? "")
                 Button("다시 시도") { Task { await model.retry(testament) } }
@@ -66,8 +73,8 @@ struct MainScreenView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
+        .padding(20)
+        .glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: 20))
         .contentShape(Rectangle())
         .onTapGesture {
             if case .ready = state {
