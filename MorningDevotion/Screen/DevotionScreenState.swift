@@ -19,11 +19,6 @@ nonisolated enum VideoSlot: Equatable, Sendable {
     }
 }
 
-nonisolated enum DevotionScreenMode: Equatable, Sendable {
-    case next
-    case review
-}
-
 extension DevotionEntry {
     /// "2025/09/11(목)"; weekday nil → "2025/09/11".
     nonisolated var displayDate: String {

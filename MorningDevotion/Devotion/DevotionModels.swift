@@ -89,7 +89,14 @@ nonisolated struct ReadingProgress: Equatable, Sendable {
     }
 }
 
-nonisolated struct NextDevotionPick: Equatable, Sendable {
+extension ReadingProgress {
+    /// Read ⇔ date <= lastSeen of that testament.
+    nonisolated func isRead(_ date: DevotionDate, for testament: Testament) -> Bool {
+        date <= lastSeen(for: testament)
+    }
+}
+
+nonisolated struct NextDevotionPick:Equatable, Sendable {
     let testament: Testament
     let entry: DevotionEntry?
 }

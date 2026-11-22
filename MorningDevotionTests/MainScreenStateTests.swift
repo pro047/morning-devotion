@@ -120,48 +120,80 @@ struct MainScreenStateTests {
 
     // MARK: - AC-5 refreshed / messages
 
-    // AC-5: finished today and entry is lastSeen → read; entry kept
-    @Test func ac5_refreshedMarksRead() {
-        let result = MainRowRules.refreshed(
-            Self.readyRow(isRead: false),
-            lastSeen: Self.date(2025, 9, 11), finishedDay: Self.date(2026, 11, 20), today: Self.date(2026, 11, 20))
-        #expect(result == Self.readyRow(isRead: true))
+    // AC-50 (rewrites AC-5): entry date <= lastSeen → read; entry kept
+    @Test func ac50_refreshedMarksReadWhenDateAtOrBeforeLastSeen() {
+        let equal = MainRowRules.refreshed(Self.readyRow(isRead: false), lastSeen: Self.date(2025, 9, 11))
+        #expect(equal == Self.readyRow(isRead: true))
+        let after = MainRowRules.refreshed(Self.readyRow(isRead: false), lastSeen: Self.date(2025, 9, 12))
+        #expect(after == Self.readyRow(isRead: true))
+        // Far ahead (other year) is still "<=".
+        let farAhead = MainRowRules.refreshed(Self.readyRow(isRead: false), lastSeen: Self.date(2026, 1, 1))
+        #expect(farAhead == Self.readyRow(isRead: true))
     }
 
-    // AC-5: finished nil / yesterday → not read
-    @Test func ac5_refreshedNotFinishedToday() {
-        let nilFinished = MainRowRules.refreshed(
-            Self.readyRow(isRead: false),
-            lastSeen: Self.date(2025, 9, 11), finishedDay: nil, today: Self.date(2026, 11, 20))
-        #expect(nilFinished == Self.readyRow(isRead: false))
-        let yesterday = MainRowRules.refreshed(
-            Self.readyRow(isRead: false),
-            lastSeen: Self.date(2025, 9, 11), finishedDay: Self.date(2026, 11, 19), today: Self.date(2026, 11, 20))
-        #expect(yesterday == Self.readyRow(isRead: false))
-    }
-
-    // AC-5: lastSeen differs from the row's entry → not read
+    // AC-50 / AC-5: lastSeen before the row's entry → not read
     @Test func ac5_refreshedLastSeenMismatch() {
-        let result = MainRowRules.refreshed(
-            Self.readyRow(isRead: false),
-            lastSeen: Self.date(2025, 9, 10), finishedDay: Self.date(2026, 11, 20), today: Self.date(2026, 11, 20))
+        let result = MainRowRules.refreshed(Self.readyRow(isRead: false), lastSeen: Self.date(2025, 9, 10))
         #expect(result == Self.readyRow(isRead: false))
     }
 
-    // AC-5 boundary: isRead is recomputed, not sticky (read row → not read when finishedDay is gone)
+    // AC-50 boundary: isRead is recomputed, not sticky (read row + lastSeen 09/10 → not read)
     @Test func ac5_refreshedClearsStaleRead() {
-        let result = MainRowRules.refreshed(
-            Self.readyRow(isRead: true),
-            lastSeen: Self.date(2025, 9, 11), finishedDay: nil, today: Self.date(2026, 11, 20))
+        let result = MainRowRules.refreshed(Self.readyRow(isRead: true), lastSeen: Self.date(2025, 9, 10))
         #expect(result == Self.readyRow(isRead: false))
+        // Month boundary: lastSeen 08/31 < 09/11 → not read; 09/30 → read
+        #expect(MainRowRules.refreshed(Self.readyRow(isRead: true), lastSeen: Self.date(2025, 8, 31))
+            == Self.readyRow(isRead: false))
+        #expect(MainRowRules.refreshed(Self.readyRow(isRead: false), lastSeen: Self.date(2025, 9, 30))
+            == Self.readyRow(isRead: true))
     }
 
-    // AC-5: non-ready states are returned unchanged
+    // AC-50 / AC-5: non-ready states are returned unchanged
     @Test(arguments: [MainRowState.networkError, .noNextDevotion, .loading])
     func ac5_refreshedKeepsOtherStates(row: MainRowState) {
-        let result = MainRowRules.refreshed(
-            row, lastSeen: Self.date(2025, 9, 11), finishedDay: Self.date(2026, 11, 20), today: Self.date(2026, 11, 20))
+        let result = MainRowRules.refreshed(row, lastSeen: Self.date(2025, 9, 11))
         #expect(result == row)
+    }
+
+    // MARK: - AC-51 returnAction
+
+    // AC-51: .ready + basis != lastSeen → reload
+    @Test func ac51_returnActionReloadsWhenBasisChanged() {
+        let action = MainRowRules.returnAction(
+            Self.readyRow(isRead: false), basis: Self.date(2025, 9, 10), lastSeen: Self.date(2025, 9, 11))
+        #expect(action == .reload)
+        // basis moved backwards relative to lastSeen also differs → reload
+        let back = MainRowRules.returnAction(
+            Self.readyRow(isRead: false), basis: Self.date(2025, 9, 12), lastSeen: Self.date(2025, 9, 11))
+        #expect(back == .reload)
+    }
+
+    // AC-51: .ready + basis == lastSeen → keep(refreshed)
+    @Test func ac51_returnActionKeepsRefreshedWhenBasisSame() {
+        let action = MainRowRules.returnAction(
+            Self.readyRow(isRead: false), basis: Self.date(2025, 9, 11), lastSeen: Self.date(2025, 9, 11))
+        #expect(action == .keep(Self.readyRow(isRead: true)))
+        // Stale read flag is recomputed too: row 09/11 read, basis = lastSeen = 09/10 → not read
+        let stale = MainRowRules.returnAction(
+            Self.readyRow(isRead: true), basis: Self.date(2025, 9, 10), lastSeen: Self.date(2025, 9, 10))
+        #expect(stale == .keep(Self.readyRow(isRead: false)))
+    }
+
+    // AC-51: .ready + basis nil → reload
+    @Test func ac51_returnActionNilBasisReloads() {
+        let action = MainRowRules.returnAction(
+            Self.readyRow(isRead: false), basis: nil, lastSeen: Self.date(2025, 9, 11))
+        #expect(action == .reload)
+    }
+
+    // AC-51: non-ready rows are kept as is, basis ignored (differs / nil)
+    @Test(arguments: [MainRowState.networkError, .noNextDevotion, .loading])
+    func ac51_returnActionKeepsOtherStates(row: MainRowState) {
+        #expect(MainRowRules.returnAction(row, basis: Self.date(2025, 9, 10), lastSeen: Self.date(2025, 9, 11))
+            == .keep(row))
+        #expect(MainRowRules.returnAction(row, basis: nil, lastSeen: Self.date(2025, 9, 11)) == .keep(row))
+        #expect(MainRowRules.returnAction(row, basis: Self.date(2025, 9, 11), lastSeen: Self.date(2025, 9, 11))
+            == .keep(row))
     }
 
     // AC-5: row messages
@@ -172,35 +204,34 @@ struct MainScreenStateTests {
         #expect(Self.readyRow(isRead: false).message == nil)
     }
 
-    // MARK: - MainRowLoader (FR-2 branches; backs AC-10 / AC-25 / AC-21 / AC-22)
+    // MARK: - MainRowLoader (always next after lastSeen; backs AC-49 / AC-21 / AC-22)
 
-    // AC-10 (loader): finished today → one search on lastSeen, read row
-    @Test func ac10_loaderReadBranchSearchesLastSeenOnce() async throws {
+    // AC-49: lastSeen 09/11 → next is 09/12 #15157, unread; no re-search of 09/11
+    @Test func ac49_loaderAlwaysSearchesNextAfterLastSeen() async throws {
         let homepage = FakeRowHomepage(
-            search: ["2025/09/11": .html(try FixtureLoader.html("cast-search-proverbs-23"))],
+            search: [
+                "2025/09/11": .html(try FixtureLoader.html("cast-search-proverbs-23")),
+                "2025/09/12": .html(try FixtureLoader.html("cast-search-date-20250912")),
+            ],
             defaultSearch: try Self.emptyPage())
 
-        let row = await MainRowLoader.load(
-            .oldTestament, lastSeen: Self.date(2025, 9, 11), finishedDay: Self.date(2026, 11, 20),
-            today: Self.date(2026, 11, 20), using: homepage)
+        let row = await MainRowLoader.load(.oldTestament, lastSeen: Self.date(2025, 9, 11), using: homepage)
 
         let c = try #require(Self.content(row))
         #expect(c.testament == .oldTestament)
-        #expect(c.isRead == true)
-        #expect(c.title == "2025/09/11(목) 잠언 23:24-35")
-        #expect(c.entry.articleNo == 15155)
-        #expect(Self.searchValues(await homepage.requested) == ["2025/09/11"])
+        #expect(c.isRead == false)
+        #expect(c.title == "2025/09/12(금) 잠언 24:1-10")
+        #expect(c.entry.articleNo == 15157)
+        #expect(Self.searchValues(await homepage.requested) == ["2025/09/12"])
     }
 
-    // AC-6 (loader): not finished today → next-devotion search after lastSeen, unread row
+    // AC-49 / AC-6 (loader): lastSeen 09/10 → next-devotion search after lastSeen, unread row
     @Test func ac6_loaderNextBranchFindsNext() async throws {
         let homepage = FakeRowHomepage(
             search: ["2025/09/11": .html(try FixtureLoader.html("cast-search-proverbs-23"))],
             defaultSearch: try Self.emptyPage())
 
-        let row = await MainRowLoader.load(
-            .oldTestament, lastSeen: Self.date(2025, 9, 10), finishedDay: Self.date(2026, 11, 19),
-            today: Self.date(2026, 11, 20), using: homepage)
+        let row = await MainRowLoader.load(.oldTestament, lastSeen: Self.date(2025, 9, 10), using: homepage)
 
         let c = try #require(Self.content(row))
         #expect(c.testament == .oldTestament)
@@ -210,44 +241,70 @@ struct MainScreenStateTests {
         #expect(Self.searchValues(await homepage.requested) == ["2025/09/11"])
     }
 
-    // AC-25 (loader): read branch with no entry on lastSeen → networkError (design default)
-    @Test func ac25_loaderReadBranchMissingEntryIsNetworkError() async throws {
-        let homepage = FakeRowHomepage(search: [:], defaultSearch: try Self.emptyPage())
+    // AC-49: new testament row carries its testament
+    @Test func ac49_loaderNewTestamentRow() async throws {
+        let homepage = FakeRowHomepage(
+            search: ["2020/07/12": .html(try FixtureLoader.html("cast-search-john-5"))],
+            defaultSearch: try Self.emptyPage())
 
-        let row = await MainRowLoader.load(
-            .oldTestament, lastSeen: Self.date(2025, 9, 11), finishedDay: Self.date(2026, 11, 20),
-            today: Self.date(2026, 11, 20), using: homepage)
+        let row = await MainRowLoader.load(.newTestament, lastSeen: Self.date(2020, 7, 11), using: homepage)
 
-        #expect(row == .networkError)
-        #expect(Self.searchValues(await homepage.requested) == ["2025/09/11"])
+        let c = try #require(Self.content(row))
+        #expect(c.testament == .newTestament)
+        #expect(c.isRead == false)
+        #expect(c.entry.date == Self.date(2020, 7, 13))
+        #expect(c.entry.articleNo == 11480)
     }
 
-    // AC-21 (loader): any thrown fetch error → networkError (both branches)
+    // AC-49 / AC-21 (loader): any thrown fetch error → networkError
     @Test func ac21_loaderFetchErrorIsNetworkError() async throws {
         let failing = FakeRowHomepage(
             search: ["2025/09/11": .failure(URLError(.notConnectedToInternet))],
             defaultSearch: try Self.emptyPage())
 
-        let next = await MainRowLoader.load(
-            .oldTestament, lastSeen: Self.date(2025, 9, 10), finishedDay: nil,
-            today: Self.date(2026, 11, 20), using: failing)
-        let read = await MainRowLoader.load(
-            .oldTestament, lastSeen: Self.date(2025, 9, 11), finishedDay: Self.date(2026, 11, 20),
-            today: Self.date(2026, 11, 20), using: failing)
+        let next = await MainRowLoader.load(.oldTestament, lastSeen: Self.date(2025, 9, 10), using: failing)
 
         #expect(next == .networkError)
-        #expect(read == .networkError)
+        #expect(Self.searchValues(await failing.requested) == ["2025/09/11"])
     }
 
-    // AC-22 (loader): seven empty days → noNextDevotion
+    // AC-49 / AC-22 (loader): seven empty days → noNextDevotion, seven requests
     @Test func ac22_loaderNoNextDevotion() async throws {
         let homepage = FakeRowHomepage(search: [:], defaultSearch: try Self.emptyPage())
 
-        let row = await MainRowLoader.load(
-            .oldTestament, lastSeen: Self.date(2025, 9, 10), finishedDay: nil,
-            today: Self.date(2026, 11, 20), using: homepage)
+        let row = await MainRowLoader.load(.oldTestament, lastSeen: Self.date(2025, 9, 10), using: homepage)
 
         #expect(row == .noNextDevotion)
-        #expect(await homepage.requested.count == 7)
+        #expect(Self.searchValues(await homepage.requested) == [
+            "2025/09/11", "2025/09/12", "2025/09/13", "2025/09/14", "2025/09/15", "2025/09/16", "2025/09/17",
+        ])
+    }
+
+    // MARK: - AC-70 arrows per row (US-1, US-5, FR-10)
+
+    // AC-70: .ready → both, .noNextDevotion → previous only, .loading / .networkError → none
+    @Test func ac70_arrowsPerRow() {
+        #expect(MainRowRules.arrows(for: Self.readyRow(isRead: false)) == .both)
+        #expect(MainRowRules.arrows(for: Self.readyRow(isRead: true)) == .both)
+        #expect(MainRowRules.arrows(for: .noNextDevotion) == .previousOnly)
+        #expect(MainRowRules.arrows(for: .loading) == NavArrows.none)
+        #expect(MainRowRules.arrows(for: .networkError) == NavArrows.none)
+    }
+
+    // AC-70: NavArrows constants and allows(_:)
+    @Test func ac70_navArrowsAllows() {
+        #expect(NavArrows.previousOnly.allows(.previous) == true)
+        #expect(NavArrows.previousOnly.allows(.next) == false)
+        #expect(NavArrows.none.allows(.previous) == false)
+        #expect(NavArrows.none.allows(.next) == false)
+        #expect(NavArrows.both.allows(.previous) == true)
+        #expect(NavArrows.both.allows(.next) == true)
+
+        #expect(NavArrows.none == NavArrows(previous: false, next: false))
+        #expect(NavArrows.both == NavArrows(previous: true, next: true))
+        #expect(NavArrows.previousOnly == NavArrows(previous: true, next: false))
+        #expect(NavArrows.previousOnly != NavArrows.both)
+        #expect(NavArrows(previous: false, next: true).allows(.next) == true)
+        #expect(NavArrows(previous: false, next: true).allows(.previous) == false)
     }
 }

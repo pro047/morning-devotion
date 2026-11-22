@@ -12,8 +12,6 @@ nonisolated final class ReadingProgressStore {
     )
     static let oldKey = "readingProgress.lastSeenOld"
     static let newKey = "readingProgress.lastSeenNew"
-    static let finishedOldKey = "readingProgress.finishedDayOld"
-    static let finishedNewKey = "readingProgress.finishedDayNew"
 
     private let defaults: UserDefaults
 
@@ -47,22 +45,6 @@ nonisolated final class ReadingProgressStore {
             lastSeenOld: readValue(key: Self.oldKey) ?? Self.defaultProgress.lastSeenOld,
             lastSeenNew: readValue(key: Self.newKey) ?? Self.defaultProgress.lastSeenNew
         )
-    }
-
-    /// Last "다 봤어요" day for `testament`; nil when absent or unreadable. Never writes.
-    func finishedDay(for testament: Testament) -> DevotionDate? {
-        readValue(key: finishedKey(for: testament))
-    }
-
-    func markFinished(_ testament: Testament, on day: DevotionDate) {
-        defaults.set(day.storageString, forKey: finishedKey(for: testament))
-    }
-
-    private func finishedKey(for testament: Testament) -> String {
-        switch testament {
-        case .oldTestament: return Self.finishedOldKey
-        case .newTestament: return Self.finishedNewKey
-        }
     }
 
     private func readValue(key: String) -> DevotionDate? {

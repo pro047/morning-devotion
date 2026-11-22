@@ -48,6 +48,7 @@ struct MainScreenView: View {
     @ViewBuilder
     private func row(_ testament: Testament) -> some View {
         let state = model.row(for: testament)
+        let arrows = MainRowRules.arrows(for: state)
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(testament.displayName).font(.headline)
@@ -63,13 +64,22 @@ struct MainScreenView: View {
             case .loading:
                 ProgressView()
             case .ready(let c):
-                Text(c.title)
-                    .font(Theme.passageFont)
+                navRow(testament, arrows: arrows) {
+                    Text(c.title)
+                        .font(Theme.passageFont)
+                        .multilineTextAlignment(.center)
+                }
+                .id(c.entry.date)
+                .transition(.push(from: pushEdge(testament)))
+                movingAndNotice(testament)
             case .networkError:
                 Text(state.message ?? "")
                 Button("다시 시도") { Task { await model.retry(testament) } }
             case .noNextDevotion:
-                Text(state.message ?? "")
+                navRow(testament, arrows: arrows) {
+                    Text(state.message ?? "")
+                }
+                movingAndNotice(testament)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -81,5 +91,62 @@ struct MainScreenView: View {
                 screen = model.makeScreenModel(for: testament)
             }
         }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20).onEnded { v in
+                let direction = SwipeRules.direction(
+                    dx: v.translation.width,
+                    dy: v.translation.height,
+                    startX: v.startLocation.x,
+                    excludesLeadingEdge: false
+                )
+                if let direction {
+                    Task { await model.navigate(testament, direction) }
+                }
+            }
+        )
+        .animation(.snappy, value: state)
+        .sensoryFeedback(trigger: model.feedback(for: testament)) { _, new in
+            guard let new else { return nil }
+            return new.succeeded ? .impact(weight: .light) : .warning
+        }
+    }
+
+    /// Arrow / content / arrow line; arrows the row does not offer are left out.
+    private func navRow<Content: View>(
+        _ testament: Testament,
+        arrows: NavArrows,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack {
+            if arrows.allows(.previous) {
+                GlassArrowButton(direction: .previous) {
+                    Task { await model.navigate(testament, .previous) }
+                }
+                .disabled(model.isMoving(testament))
+            }
+            content().frame(maxWidth: .infinity)
+            if arrows.allows(.next) {
+                GlassArrowButton(direction: .next) {
+                    Task { await model.navigate(testament, .next) }
+                }
+                .disabled(model.isMoving(testament))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func movingAndNotice(_ testament: Testament) -> some View {
+        if model.isMoving(testament) {
+            ProgressView().controlSize(.small)
+        }
+        if let notice = model.notice(for: testament) {
+            Text(notice)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func pushEdge(_ testament: Testament) -> Edge {
+        model.feedback(for: testament)?.direction == .previous ? .leading : .trailing
     }
 }
