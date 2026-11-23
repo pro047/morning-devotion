@@ -8,7 +8,7 @@ import Foundation
 /// Outcome of resolving a video for one devotion (M3 PRD R-4).
 nonisolated enum DevotionVideoResult: Equatable, Sendable {
     case found(videoID: String)
-    case notFound          // not on the article page and no matching search result
+    case notFound          // no matching sermon video in the search results
     case searchFailed      // network / HTTP / malformed response
 }
 
@@ -41,8 +41,10 @@ nonisolated struct URLSessionYouTubeSearchFetcher: YouTubeSearchFetching {
 nonisolated enum DevotionVideoFinder {
     static let channelID = "UCSkjujMSzrh6nghHWTSvIJg"
 
-    private static let embedPattern = try! NSRegularExpression(pattern: #"youtube\.com/embed/([A-Za-z0-9_-]+)"#)
     private static let titleDatePattern = try! NSRegularExpression(pattern: #"^\s*\d{4}/\d{1,2}/\d{1,2}"#)
+    private static let sermonDateCellPattern = try! NSRegularExpression(
+        pattern: #"^(\d{4})\.(\d{1,2})\.(\d{1,2})\s*(\([^)]*\))?$"#
+    )
 
     /// Minimal shape of a search.list response. Every leaf is optional so one odd item can't fail the decode.
     private struct SearchResponse: Decodable {
@@ -55,19 +57,9 @@ nonisolated enum DevotionVideoFinder {
         let items: [Item]
     }
 
-    /// R-1. First `youtube.com/embed/<id>` anywhere in the document.
-    static func videoID(inArticleHTML html: String) -> String? {
-        let ns = html as NSString
-        guard let m = embedPattern.firstMatch(in: html, range: NSRange(location: 0, length: ns.length)) else {
-            return nil
-        }
-        let id = ns.substring(with: m.range(at: 1))
-        return id.isEmpty ? nil : id
-    }
-
-    /// R-2. "<YYYY/MM/DD> <passageText>".
+    /// FR-2. Passage only, no date.
     static func searchQuery(for entry: DevotionEntry) -> String {
-        "\(entry.date.description) \(entry.passageText)"
+        entry.passageText
     }
 
     /// R-2. Parameter order is fixed (tests assert it).
@@ -90,6 +82,9 @@ nonisolated enum DevotionVideoFinder {
     /// so DevotionTitleParser (which only strips `/ 작성: 이름`) can read the passage.
     static func videoTitleEntry(_ rawTitle: String) -> DevotionEntry? {
         let decoded = DevotionListParser.decodeEntities(rawTitle)
+        if decoded.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[") {
+            return sermonTitleEntry(decoded.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
         let ns = decoded as NSString
         guard let m = titleDatePattern.firstMatch(in: decoded, range: NSRange(location: 0, length: ns.length)) else {
             return nil
@@ -100,6 +95,35 @@ nonisolated enum DevotionVideoFinder {
             tail = String(tail[..<slash.lowerBound])
         }
         return DevotionTitleParser.parse(head + tail)
+    }
+
+    /// FR-3. 2025 form: `[ 설교 | 새벽기도회 | 2025.9.13(토) ] 잠언 24:11-22 | 인도 윤지은`.
+    /// Rewritten to the 2020 shape (`2025/9/13(토) 잠언 24:11-22`) so DevotionTitleParser does the rest.
+    private static func sermonTitleEntry(_ title: String) -> DevotionEntry? {
+        guard let close = title.firstIndex(of: "]") else { return nil }
+        let bracket = title[title.index(after: title.startIndex)..<close]
+        let rest = String(title[title.index(after: close)...])
+
+        let cells = bracket.split(separator: "|", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard cells.count >= 2, cells[0] == "설교", let dateCell = cells.last else { return nil }
+
+        let ns = dateCell as NSString
+        guard let m = sermonDateCellPattern.firstMatch(in: dateCell, range: NSRange(location: 0, length: ns.length)) else {
+            return nil
+        }
+        let year = ns.substring(with: m.range(at: 1))
+        let month = ns.substring(with: m.range(at: 2))
+        let day = ns.substring(with: m.range(at: 3))
+        let weekday = m.range(at: 4).location == NSNotFound ? "" : ns.substring(with: m.range(at: 4))
+
+        var passage = rest
+        if let bar = passage.firstIndex(of: "|") {
+            passage = String(passage[..<bar])
+        }
+        passage = passage.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return DevotionTitleParser.parse("\(year)/\(month)/\(day)\(weekday) \(passage)")
     }
 
     /// R-3. Same date, and same passage (structured when both parse, else exact normalized text).
@@ -124,16 +148,12 @@ nonisolated enum DevotionVideoFinder {
         return nil
     }
 
-    /// R-1 → R-2 → R-3 → R-4 → R-5. A video on the article page wins and skips the search entirely.
+    /// FR-1. Always searches; the article page's embed is never used.
     static func findVideo(
         for entry: DevotionEntry,
-        articleHTML: String?,
         apiKey: String,
         using searcher: some YouTubeSearchFetching
     ) async -> DevotionVideoResult {
-        if let html = articleHTML, let id = videoID(inArticleHTML: html) {
-            return .found(videoID: id)
-        }
         guard let url = searchURL(query: searchQuery(for: entry), apiKey: apiKey) else {
             return .searchFailed
         }

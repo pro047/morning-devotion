@@ -62,7 +62,7 @@ final class DevotionScreenModel {
             return .networkError
         }
 
-        let slot = await videoSlot(for: entry, articleHTML: html)
+        let slot = await videoSlot(for: entry)
         return .showing(DevotionScreenContent(testament: testament, entry: entry, article: article, video: slot))
     }
 
@@ -114,11 +114,9 @@ final class DevotionScreenModel {
         }
     }
 
-    private func videoSlot(for entry: DevotionEntry, articleHTML: String) async -> VideoSlot {
+    private func videoSlot(for entry: DevotionEntry) async -> VideoSlot {
         guard let key = apiKey, !key.isEmpty else { return .notFound }
-        let result = await DevotionVideoFinder.findVideo(
-            for: entry, articleHTML: articleHTML, apiKey: key, using: searcher
-        )
+        let result = await DevotionVideoFinder.findVideo(for: entry, apiKey: key, using: searcher)
         switch result {
         case .found(let id): return .video(id: id)
         case .notFound: return .notFound
