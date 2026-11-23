@@ -180,3 +180,63 @@
 - F-3 테스트: worktree·병합 후 main 모두 242 tests / 15 suites 통과 (병합 전 210 / 12)
 - 시뮬레이터 상태 표시줄 시각은 Mac 시각을 따른다 (7:08 표시 = 19:08 KST)
 - iOS 27.2 SDK 에 `glassEffect(_:in:)`·`GlassEffectContainer(spacing:)`·`Glass.regular/.clear/.interactive()`·버튼 스타일 `.glass`·`.glassProminent` 있음 (swiftinterface grep)
+
+<!-- 2026-11-22 이동 (/done) -->
+## 최신 스트림 — 2026-11-22: v0.1.0 태그·실기기 첫 설치 → F-4 이전·다음·F-5 글래스 화살표·스와이프 (resolved)
+
+**요청**: `/next` → "지금 버전을 v0.1.0 으로 태그하고 실제 기기에 받아보자" → 무선 연결 진단 → 영상 출처·할당량 질문 → 유료 가입 보류 → gitignore·핸드오프 반영
+
+**결정**: 확정 결정 표의 2026-11-22 행 2개 (버전 태그 = `MARKETING_VERSION`, 무료 Personal Team 유지·매주 재설치). 유료 Developer Program(연 99달러)은 보류 — 원화 금액은 미확인
+
+**변경**
+- f2fbe54 `chore: v0.1.0 실기기 설치용 서명·번들 ID·버전 설정` — `project.xcproj` 1파일 (+5 −4): `DEVELOPMENT_TEAM`(Xcode UI 가 기록), 번들 ID 2개, `MARKETING_VERSION` 0.1.0 ×2. main push, 태그 `v0.1.0`(annotated) push — 실측 `git ls-remote --tags origin`
+- 미커밋: `.gitignore` `build-device/` 추가, 이 핸드오프·아카이브
+
+**지뢰**: 지뢰 섹션 "공용 Wi-Fi 에선 실기기 무선 연결이 안 된다" (이번에 밟음)
+
+**실측**
+- 회귀: `xcodebuild test -scheme MorningDevotion -destination id=62A98FA5…` → `242 tests in 15 suites passed`, `TEST SUCCEEDED` (`| tail` 파이프라 종료 코드는 문구로 판단)
+- 기기 빌드: `xcodebuild build … -allowProvisioningUpdates` exit 0, `BUILD SUCCEEDED`, 서명 `Apple Development: pro047@naver.com` (인증서는 이 빌드 중 자동 생성 — 직전 `find-identity` 0개)
+- 설치: `devicectl device install app` → `App installed`, `bundleID: com.pro047.morningdevotion`. 진성이 실기기에서 메인 두 줄·묵상 화면 영상 재생 확인 (완료 조건 b)
+- 영상 ID 저장 없음 — `UserDefaults` 사용처는 `ReadingProgressStore.swift` 뿐(실측 grep). 검색 경로 묵상은 화면을 열 때마다 `search.list` 1회
+- 할당량: Google 문서 기본 10,000 단위/일, `search.list` 비용은 판본마다 100 단위 또는 별도 하루 100회 — 어느 쪽이든 약 100회/일, 태평양 자정(11월 = KST 17:00) 초기화. 이 키의 콘솔 값은 미확인
+- 범위 밖 관찰(안 고침): `DevotionScreenModel.swift:91` 키가 비면 글 페이지 iframe 이 있어도 영상 없음 — 키 검사가 R-1 보다 먼저. PRD 의도인지 미확인 (확정 결정 표 "API 키 없음은 검색 없이 '영상을 찾지 못했습니다'" 행과 관련)
+- `rm -rf build-device` 는 권한 거부 — 폴더는 남아 있고 gitignore 로 처리
+
+**요청 (이어서)**: "하루에 묵상 하나씩이 강제되는데 유연하게" → (b) 제한 해제 + 이전·다음 → `/prd` F-4 → `sap run` → D:413 확인·원격 설치 → "더 이쁜 버튼" → A안(원형 글래스) + 스와이프 → `/prd` F-5 → `sap run` → 실기기 전부 통과 → PR 하나 → 병합·정리
+
+**결정 (이어서)**: 확정 결정 표의 2026-11-22 F-4·F-5 행 5개. 설계 게이트 두 번 모두 승인 뷰 그대로 보이고 y 중계
+
+**변경 (이어서)**
+- a29a2d2 `docs: F-4 이전·다음 묵상 이동 PRD 추가`, 43123e7 `chore: build-device 빌드 산출물 gitignore 추가`, b066cdf `docs: 핸드오프 갱신 (2026-11-22)` — main push
+- 233fca8 (`pipeline/f-4-prev-next`, AUTO_COMMIT) — 14파일 +1755 −402 (`AdjacentDevotionSearch` 신규, `ReadingProgressStore` finishedDay 제거, Main/Devotion Screen*)
+- 5d47244 `docs: F-5 … PRD 추가` — F-4 브랜치에 커밋
+- f8dff06 (`pipeline/f-5-glass-nav-swipe`, AUTO_COMMIT) — 11파일 +1091 −55 (`NavigationRules` 신규, Theme 글래스 버튼)
+- 512df03 PR #4 병합 (`gh pr merge --merge`, `--delete-branch` 안 씀 — 지뢰 "gh pr merge --delete-branch")
+
+**실측 (이어서)**
+- F-4 주행: 설계 → [결정] 4개 y → baseline·verify·impl·green, 시도 1/3, 되감기 0. 체크리스트 Attention 9 · [사실] 7
+- F-5 주행: 설계 → judge 반박으로 설계 되감기 1회 → [결정] 5개 y → green, 시도 1/3. Attention 10 · [사실] 13
+- D:413: `curl` 날짜 검색 32페이지(2025/09/04~18·2020/07/04~20) — 페이지당 글 0~1개, 날짜 불일치 0. 빈 날은 일요일 5개. 2025/09 글 13개 전부 잠언
+- 실기기 무선 설치: 아이폰 핫스팟에서 `devicectl` `available (paired)` → F-4 빌드·F-5 빌드 차례로 `App installed`
+- 병합 전 `xcodebuild test` 314 tests / 17 suites 통과 (242 → 314)
+
+<!-- 2026-11-23 이동 (/done) -->
+## 최신 스트림 — 2026-11-22: 메인 이동 로딩 스피너 제거·앱 아이콘 (resolved)
+
+**요청**: "메인에서는 이전 다음 시 로딩 이미지를 안 보여주는 게 낫겠다" (이상한 점 = 스피너 자체 + 카드 높이 변화 둘 다) → 커밋 → 실기기 설치 → "기본 아이콘 말고 다른 걸로" → "지금 메인에 맞춰서" → 커밋·푸시 → PR → 병합 → 브랜치 삭제
+
+**결정**: 확정 결정 표의 2026-11-22 "메인 줄 … 로딩 스피너 없음"·"앱 아이콘" 행. main 에서 시작해 `fix/main-nav-no-spinner` 브랜치로 커밋 → PR #5 → merge commit 병합 (PR #4 와 같은 방식)
+
+**변경**
+- 1c54421 `fix: 메인 이전·다음 이동 중 로딩 스피너 제거` — `MainScreenView.swift` `movingAndNotice` 에서 `ProgressView` 3줄 삭제. 함수 이름은 그대로(이제 알림 문구만 — 범위 밖이라 안 바꿈)
+- a327a31 `feat: 메인 화면 톤의 앱 아이콘 추가` — `AppIcon.appiconset`(PNG + Contents.json, universal/ios 1024), `project.xcproj` 앱 타깃에 `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon`. 그 전엔 AppIcon 세트·설정 둘 다 없어서 기본 아이콘이었다(실측 `ls`·`rg` 0건)
+- PR #5 병합 3ffd61f, 브랜치 로컬·원격 삭제
+
+**지뢰**: 지뢰 섹션 "`Executed 0 tests` 는 XCTest 줄"·"NSGraphicsContext(bitmapImageRep:) 새까만 PNG" (이번에 밟음)
+
+**실측**
+- 실기기 설치 두 번(21:53 1c54421, 21:59 a327a31) 모두 Wi-Fi 로 `App installed`. 이 Wi-Fi 가 공용인지는 미확인 — 지뢰 "공용 Wi-Fi" 와 모순 아님
+- 빌드된 앱 `Info.plist` `CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconName = "AppIcon"`, 번들에 `AppIcon60x60@2x.png`·`AppIcon76x76@2x~ipad.png`
+- `sun.horizon.fill` 팔레트 순서: `paletteColors: [a, b]` 에서 a = 지평선, b = 해·햇살 (`[주황, 잉크]` 은 반대로 나옴). `sunrise.fill` 은 화살표가 붙어 버림
+- 실기기 눈 확인 (2026-11-23, 진성): 이전·다음 때 스피너 없음·카드 높이 그대로, 홈 화면 아이콘은 설치 직후 바로 새 것 (재부팅 불필요 — "아이콘 캐시" 추정은 해당 없었음)
