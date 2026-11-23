@@ -219,8 +219,9 @@ struct DevotionScreenModelTests {
                   homepage: homepage, youtube: youtube, apiKey: apiKey)
     }
 
-    /// Expected old content (2025/09/11, video from the article embed).
-    private static func expectOld(_ state: DevotionScreenState, video: VideoSlot = .video(id: "PR9GK_S83NU")) throws {
+    /// Expected old content (2025/09/11). AC-94: the shared fake YouTube is the 2020 fixture, which has no
+    /// 2025/09/11 sermon → `.notFound` by default (the article embed is no longer used).
+    private static func expectOld(_ state: DevotionScreenState, video: VideoSlot = .notFound) throws {
         let c = try #require(content(state))
         #expect(c.testament == .oldTestament)
         let expectedEntry = try oldEntry()
@@ -259,7 +260,7 @@ struct DevotionScreenModelTests {
 
     // MARK: - AC-13 load from the given entry (M4 AC-1 / AC-2 rewritten)
 
-    // AC-13 (결정 1, M4 AC-1): old entry → article only (no list search), embed video, no YouTube
+    // AC-13 (결정 1, M4 AC-1) / AC-94: old entry → article only (no list search), YouTube searched once
     @Test func ac13_oldEntryLoadsArticleOnly() async throws {
         let env = try Env(2026, 11, 20, 7)
         defer { env.cleanup() }
@@ -274,7 +275,7 @@ struct DevotionScreenModelTests {
 
         try Self.expectOld(model.state)
         #expect(model.state.message == nil)
-        #expect(await youtube.requested.count == 0)
+        #expect(await youtube.requested.count == 1)
         let requested = await homepage.requested
         #expect(Self.describe(requested) == ["no=15155"])
         #expect(requested.last == DevotionArticleURL.url(articleNo: 15155))
@@ -434,7 +435,8 @@ struct DevotionScreenModelTests {
 
         #expect(model.state == before)
         #expect(await homepage.requested.count == count)
-        #expect(await youtube.requested.count == 0)
+        // F-6 [결정] 1: the one search is from load(); refresh adds none
+        #expect(await youtube.requested.count == 1)
     }
 
     // AC-18 boundary: refresh after "다 봤어요" (same / next day) does nothing either
@@ -624,7 +626,7 @@ struct DevotionScreenModelTests {
         try Self.expectNew(model.state, video: .notFound)
     }
 
-    // AC-20 (M4 AC-20): no API key even when the article has an embed → "not found", article kept
+    // AC-20 (M4 AC-20) / AC-94: no API key even when the article has an embed → "not found", article kept, no search
     @Test(arguments: [nil, ""] as [String?])
     func ac20_noAPIKeyIgnoresArticleEmbed(apiKey: String?) async throws {
         let env = try Env(2026, 11, 20, 7)
@@ -639,6 +641,90 @@ struct DevotionScreenModelTests {
         #expect(c.video.message == "영상을 찾지 못했습니다")
         #expect(c.article.hymn == "454장 ‘주와 같이 되기를’")
         #expect(await youtube.requested.count == 0)
+    }
+
+    // MARK: - AC-92 / AC-93 old entry: always search, sermon only (F-6 FR-1, FR-3)
+
+    private static let sermon0911JSON =
+        #"{"items":[{"id":{"videoId":"T8fZYU9Pd0E"},"snippet":{"title":"[ 설교 | 새벽기도회 | 2025.9.11(목) ] 잠언 23:24-35 | 인도 김광욱"}}]}"#
+    private static let live0911JSON =
+        #"{"items":[{"id":{"videoId":"LIVE0911"},"snippet":{"title":"[ 생방송 | 새벽기도회 | 2025.9.11(목) ] 잠언 23:24-35 | 인도 김광욱"}}]}"#
+
+    // AC-92: article has the PR9GK_S83NU embed, but the video comes from the search (sermon)
+    @Test func ac92_oldEntrySearchesSermonDespiteEmbed() async throws {
+        let env = try Env(2026, 11, 23, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        let youtube = FakeYouTube(.data(Data(Self.sermon0911JSON.utf8)))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: youtube)
+
+        await model.load()
+
+        try Self.expectOld(model.state, video: .video(id: "T8fZYU9Pd0E"))
+        let c = try #require(Self.content(model.state))
+        #expect(c.video != .video(id: "PR9GK_S83NU"))
+        let requested = await youtube.requested
+        #expect(requested.count == 1)
+        let url = try #require(requested.first)
+        #expect(Self.query(url, "q") == "잠언 23:24-35")
+        #expect(Self.query(url, "key") == "k")
+        #expect(Self.describe(await homepage.requested) == ["no=15155"])
+        Self.expectStoreUntouched(env)
+    }
+
+    // AC-93: only a live stream in the search → "not found"; never the live stream nor the article embed
+    @Test func ac93_liveOnlyIsNotFound() async throws {
+        let env = try Env(2026, 11, 23, 7)
+        defer { env.cleanup() }
+        let youtube = FakeYouTube(.data(Data(Self.live0911JSON.utf8)))
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: youtube)
+
+        await model.load()
+
+        try Self.expectOld(model.state, video: .notFound)
+        let c = try #require(Self.content(model.state))
+        #expect(c.video.message == "영상을 찾지 못했습니다")
+        #expect(c.video != .video(id: "PR9GK_S83NU"))
+        #expect(c.video != .video(id: "LIVE0911"))
+        #expect(await youtube.requested.count == 1)
+    }
+
+    // AC-93 boundary: YouTube error on the old entry → video-slot error, no fallback to the article embed
+    @Test func ac93_oldEntrySearchErrorDoesNotFallBackToEmbed() async throws {
+        let env = try Env(2026, 11, 23, 7)
+        defer { env.cleanup() }
+        let youtube = FakeYouTube(.failure(URLError(.notConnectedToInternet)))
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: youtube)
+
+        await model.load()
+
+        try Self.expectOld(model.state, video: .networkError)
+        let c = try #require(Self.content(model.state))
+        #expect(c.video.message == "인터넷 연결을 확인해 주세요")
+        #expect(await youtube.requested.count == 1)
+    }
+
+    // AC-92 boundary: moving between old entries searches by each entry's passage and matches by date
+    // (articles 15157 and 15155 both serve body-15155 with the PR9GK_S83NU embed)
+    @Test func ac92_oldMoveSearchesEachPassage() async throws {
+        let env = try Env(2026, 11, 23, 7)
+        defer { env.cleanup() }
+        let youtube = FakeYouTube(.data(Data(Self.sermon0911JSON.utf8)))
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: try Self.moveHomepage(), youtube: youtube)
+
+        await model.load()
+        // the only sermon in the reply is 09/11 → 09/12 has no video
+        #expect(Self.content(model.state)?.entry.date == Self.date(2025, 9, 12))
+        #expect(Self.content(model.state)?.video == .notFound)
+
+        await model.move(.previous)
+
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        #expect(Self.content(model.state)?.video == .video(id: "T8fZYU9Pd0E"))
+        let urls = await youtube.requested
+        let qs = urls.map { Self.query($0, "q") }
+        #expect(qs == ["잠언 24:1-10", "잠언 23:24-35"])
     }
 
     // MARK: - AC-24 messages and header
