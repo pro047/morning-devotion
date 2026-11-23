@@ -1,0 +1,55 @@
+{
+  "kind": "youtube#searchListResponse",
+  "etag": "nPyDqFC21yGbNUujScQZxF9Be8U",
+  "regionCode": "KR",
+  "pageInfo": {
+    "totalResults": 2,
+    "resultsPerPage": 1
+  },
+  "items": [
+    {
+      "kind": "youtube#searchResult",
+      "etag": "1MHJeDcQHe5iBV0JIGCxKyF-j40",
+      "id": {
+        "kind": "youtube#video",
+        "videoId": "kH2QadelWio"
+      },
+      "snippet": {
+        "publishedAt": "2025-09-12T22:01:00Z",
+        "channelId": "UCSkjujMSzrh6nghHWTSvIJg",
+        "title": "[ 설교 | 새벽기도회 | 2025.9.13(토) ] 잠언 24:11-22 | 인도 윤지은",
+        "description": "본문 - 잠언 24:11-22 11. 너는 사망으로 끌려가는 자를 건져 주며 살륙을 당하게 된 자를 구원하지 아니하려고 하지 말라 12.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/kH2QadelWio/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/kH2QadelWio/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/kH2QadelWio/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "standard": {
+            "url": "https://i.ytimg.com/vi/kH2QadelWio/sddefault.jpg",
+            "width": 640,
+            "height": 480
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/kH2QadelWio/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "100주년기념교회",
+        "liveBroadcastContent": "none",
+        "publishTime": "2025-09-12T22:01:00Z"
+      }
+    }
+  ]
+}

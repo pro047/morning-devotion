@@ -2,6 +2,8 @@
 
 작성일: 2026-11-20 · 상위 PRD: [f-1-next-devotion.md](f-1-next-devotion.md) · 이전 마일스톤: [f-1-m2-read-and-progress.md](f-1-m2-read-and-progress.md)
 
+> **2026-11-23: R-1·R-2(검색어)·R-3(제목 형식)·R-5 는 [F-6](f-6-sermon-video.md) 이 대체한다** — 글 페이지 embed 가 2025 묶음에서 생방송(약 90분)이라 검색만 쓴다. 이 문서의 나머지는 배경으로 남긴다.
+
 F-1 을 4개 마일스톤으로 나눈 것 중 **M3** 다. 이 문서가 이번 범위의 정본이고, F-1 PRD 는 배경으로만 읽는다.
 
 ## 1. 범위
