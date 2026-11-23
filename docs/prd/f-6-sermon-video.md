@@ -59,6 +59,10 @@ FR-1·FR-2 로 아래 테스트의 기대가 바뀐다. 바꾸거나 지워도 �
 - `MorningDevotionTests/DevotionScreenModelTests.swift`
   - 구약(2025/09/11) 묵상의 영상을 글 embed `PR9GK_S83NU` 로 기대하는 것: `expectOld` 기본값과 그것을 쓰는 테스트, `ac13_oldEntryLoadsArticleOnly`(유튜브를 부르지 않음 기대), `ac20_noAPIKeyIgnoresArticleEmbed` — 영상 기대값과 유튜브 호출 여부가 바뀐다. 그 외 기대(글·진행 위치·이동·문구)는 그대로 둔다
 
+### 6-1. 설계 게이트에서 추가로 승인한 것 (F-6 설계 [결정], 2026-11-23 진성 y)
+- D:160: 6장 목록 밖인 `ac18_refreshAcrossNoonIsNoOp`(`DevotionScreenModelTests.swift:437`)의 유튜브 0회 기대를 1회로 바꾼다 (load 때 1회, refresh 는 추가 호출 0회) — FR-1(구약도 항상 검색)과 함께 통과하려면 필요
+- D:161: `findVideo` 의 `articleHTML` 인자를 없앤다. 6장 목록 밖 테스트(`ac6`·`ac7`·`ac8_findVideoIgnoresDateOnlyMatch`·`ac10a~d`·`ac10_emptyItemsIsNotFound`)는 기대값은 그대로 두고 `articleHTML: nil,` 인자 줄만 지운다
+
 ## 7. 기술적 고려
 - 테스트 입력: `MorningDevotionTests/Fixtures/yt-search-20250913.json` — `q=잠언 24:11-22`·maxResults=5 응답 원문 (2026-11-23 수집, UTF-8). items 1개 `kH2QadelWio` `[ 설교 | 새벽기도회 | 2025.9.13(토) ] 잠언 24:11-22 | 인도 윤지은`. API 키 문자열 없음 (grep 0건)
 - 생방송 영상은 검색에 나오지 않는다 (2026-11-23 실측: 위 두 검색 모두 생방송 `ut225mKfy2w` 없음. M3 5장 실측 메모의 "2025 생방송 `unlisted`"와 맞음). FR-3 의 `생방송` 거르기는 안전장치다 — 테스트는 fixture 제목을 바꾼 JSON 문자열로 만든다
