@@ -17,6 +17,14 @@ struct DevotionScreenView: View {
                 guard let new else { return nil }
                 return new.succeeded ? .impact(weight: .light) : .warning
             }
+            .confirmationDialog(
+                FinishConfirmation.title,
+                isPresented: finishDialogBinding,
+                titleVisibility: .visible
+            ) {
+                Button(FinishConfirmation.confirmLabel) { model.confirmFinish() }
+                Button(FinishConfirmation.cancelLabel, role: .cancel) { model.cancelFinish() }
+            }
             .task { await model.load() }
             .onChange(of: model.isFinished) { _, finished in
                 if finished { dismiss() }
@@ -36,19 +44,38 @@ struct DevotionScreenView: View {
     private var navigationCapsule: some View {
         HStack(spacing: 8) {
             capsuleArrow(.previous)
-            Group {
-                if model.isMoving {
-                    ProgressView()
-                } else {
-                    Circle().fill(.secondary).frame(width: 6, height: 6)
-                }
-            }
-            .frame(width: 24)
+            capsuleCenter
             capsuleArrow(.next)
         }
         .padding(.horizontal, 4)
         .glassEffect(.regular.interactive(), in: Capsule())
         .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private var capsuleCenter: some View {
+        switch model.capsuleCenter {
+        case .moving:
+            ProgressView().frame(width: 24)
+        case .dot:
+            Circle().fill(.secondary).frame(width: 6, height: 6).frame(width: 24)
+        case .finish:
+            Button(FinishConfirmation.buttonLabel) { model.requestFinish() }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tint)
+                .padding(.horizontal, 8)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .accessibilityLabel(FinishConfirmation.buttonLabel)
+                .disabled(navigationDisabled)
+        }
+    }
+
+    private var finishDialogBinding: Binding<Bool> {
+        Binding(
+            get: { model.isConfirmingFinish },
+            set: { if !$0 { model.cancelFinish() } }
+        )
     }
 
     private func capsuleArrow(_ direction: MoveDirection) -> some View {
@@ -104,7 +131,7 @@ struct DevotionScreenView: View {
         .background(Theme.paper.ignoresSafeArea())
     }
 
-    /// Passage, hymn, sermon and finish button; the swipe is only taken here, not over the video.
+    /// Passage, hymn and sermon; the swipe is only taken here, not over the video.
     private func textArea(_ c: DevotionScreenContent) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(c.headerPassage)
@@ -120,13 +147,6 @@ struct DevotionScreenView: View {
                 .font(Theme.sermonFont)
                 .lineSpacing(Theme.sermonLineSpacing)
                 .foregroundStyle(Theme.ink)
-            if model.showsFinishButton {
-                Button("다 봤어요") { model.markSeen() }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 8)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())

@@ -70,6 +70,32 @@ final class DevotionScreenModel {
         await load()
     }
 
+    /// Shown while the confirmation action sheet is up. Only requestFinish sets it to true.
+    private(set) var isConfirmingFinish: Bool = false
+
+    /// Moving first, then finish (screen is .showing and unread), else dot.
+    var capsuleCenter: CapsuleCenter {
+        if isMoving { return .moving }
+        if case .showing = state, showsFinishButton { return .finish }
+        return .dot
+    }
+
+    /// Opens the confirmation only; never writes the store.
+    func requestFinish() {
+        guard capsuleCenter == .finish else { return }
+        isConfirmingFinish = true
+    }
+
+    /// No guard on isConfirmingFinish: the binding may clear it before the button action runs.
+    func confirmFinish() {
+        isConfirmingFinish = false
+        markSeen()
+    }
+
+    func cancelFinish() {
+        isConfirmingFinish = false
+    }
+
     func markSeen() {
         guard !isRead, !isFinished, !isMoving, case .showing = state else { return }
         store.markSeen(testament, date: entry.date)

@@ -46,6 +46,21 @@ nonisolated struct DevotionScreenContent: Equatable, Sendable {
     var headerTitle: String { entry.displayTitle }
 }
 
+/// What the middle of the bottom capsule shows (F-7 FR-1). Exactly one at a time.
+nonisolated enum CapsuleCenter: Equatable, Sendable {
+    case moving   // move search in flight → ProgressView
+    case finish   // unread entry shown → "다 봤어요" text button
+    case dot      // everything else → 6pt dot
+}
+
+/// Copy for the finish button and its confirmation action sheet (F-7 US-2).
+nonisolated enum FinishConfirmation {
+    static let buttonLabel = "다 봤어요"
+    static let title = "다 봤어요로 표시할까요?"
+    static let confirmLabel = "다 봤어요"
+    static let cancelLabel = "취소"
+}
+
 nonisolated enum DevotionScreenState: Equatable, Sendable {
     case loading
     case showing(DevotionScreenContent)
