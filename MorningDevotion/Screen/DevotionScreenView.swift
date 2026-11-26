@@ -12,7 +12,9 @@ struct DevotionScreenView: View {
 
     var body: some View {
         content
-            .safeAreaInset(edge: .bottom) { navigationCapsule }
+            .safeAreaInset(edge: .bottom) {
+                if model.showsCapsule { navigationCapsule }
+            }
             .sensoryFeedback(trigger: model.feedback) { _, new in
                 guard let new else { return nil }
                 return new.succeeded ? .impact(weight: .light) : .warning

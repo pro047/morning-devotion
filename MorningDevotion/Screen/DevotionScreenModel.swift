@@ -73,6 +73,13 @@ final class DevotionScreenModel {
     /// Shown while the confirmation action sheet is up. Only requestFinish sets it to true.
     private(set) var isConfirmingFinish: Bool = false
 
+    /// Bottom capsule is shown only while an article is on screen (F-8 FR-1, FR-2).
+    /// A move search keeps state .showing, so the capsule stays during moves (FR-3).
+    var showsCapsule: Bool {
+        if case .showing = state { return true }
+        return false
+    }
+
     /// Moving first, then finish (screen is .showing and unread), else dot.
     var capsuleCenter: CapsuleCenter {
         if isMoving { return .moving }
