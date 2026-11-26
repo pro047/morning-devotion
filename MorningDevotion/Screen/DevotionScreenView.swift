@@ -54,7 +54,7 @@ struct DevotionScreenView: View {
         case .finish:
             Button(FinishConfirmation.buttonLabel) { model.requestFinish() }
                 .buttonStyle(.plain)
-                .foregroundStyle(.tint)
+                .foregroundStyle(.primary)
                 .padding(.horizontal, 8)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
