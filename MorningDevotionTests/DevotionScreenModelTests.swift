@@ -1316,6 +1316,425 @@ struct DevotionScreenModelTests {
         #expect(Self.content(model.state)?.entry.articleNo == 15157)
         #expect(model.feedback == MoveFeedback(serial: 2, direction: .next, succeeded: true))
     }
+
+    // MARK: - F-7 "다 봤어요" in the capsule (capsuleCenter, confirmation)
+
+    /// Old model on `entry` backed by moveHomepage (articles 15155 / 15157 / 15160 available).
+    private static func moveModel(_ env: Env, _ entry: DevotionEntry) throws -> DevotionScreenModel {
+        env.model(testament: .oldTestament, entry: entry,
+                  homepage: try moveHomepage(), youtube: try youtube0713())
+    }
+
+    // F-7 AC-1 (FR-1, US-1 기준 6): .loading shows the dot even though showsFinishButton is true; request ignored
+    @Test func f7_ac1_loadingShowsDot() throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+
+        #expect(model.state == .loading)
+        #expect(model.showsFinishButton == true)
+        #expect(model.capsuleCenter == .dot)
+        #expect(model.isConfirmingFinish == false)
+
+        model.requestFinish()
+
+        #expect(model.isConfirmingFinish == false)
+        #expect(model.capsuleCenter == .dot)
+        #expect(model.state == .loading)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+    }
+
+    // F-7 AC-2 (FR-1, US-1 기준 1): empty store (old default 09/10), 09/11 loaded → .finish, no sheet yet
+    @Test func f7_ac2_unreadShowingShowsFinish() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+
+        await model.load()
+
+        try Self.expectOld(model.state)
+        #expect(model.isRead == false)
+        #expect(model.capsuleCenter == .finish)
+        #expect(model.isConfirmingFinish == false)
+        Self.expectStoreUntouched(env)
+    }
+
+    // F-7 AC-3 (FR-1, US-1 기준 4): read entries (<= lastSeenOld 09/12) show the dot; request ignored, store unchanged
+    @Test func f7_ac3_readEntryShowsDot() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        env.defaults.set("2025/09/12", forKey: "readingProgress.lastSeenOld")
+        let snapshot = env.rawSnapshot()
+        #expect(snapshot == ["2025/09/12", nil, nil, nil])
+
+        for entry in [try Self.oldEntry(), try Self.old0912()] {
+            let model = try Self.moveModel(env, entry)
+            await model.load()
+            #expect(Self.content(model.state)?.entry.date == entry.date)
+            #expect(model.isRead == true)
+            #expect(model.capsuleCenter == .dot)
+
+            model.requestFinish()
+
+            #expect(model.isConfirmingFinish == false)
+            #expect(model.capsuleCenter == .dot)
+            #expect(env.rawSnapshot() == snapshot)
+        }
+    }
+
+    // F-7 AC-4 (FR-1, US-1 기준 6): article failure → .networkError → dot; request ignored
+    @Test func f7_ac4_networkErrorShowsDot() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                    defaultSearch: try Self.emptyPage())
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.state == .networkError)
+        #expect(model.showsFinishButton == true)   // unread, but the screen has no content
+        #expect(model.capsuleCenter == .dot)
+
+        model.requestFinish()
+
+        #expect(model.isConfirmingFinish == false)
+        #expect(model.state == .networkError)
+        Self.expectStoreUntouched(env)
+    }
+
+    // F-7 AC-5 (FR-1, FR-5, US-1 기준 5): during a move search → .moving; request ignored; back after the move
+    @Test func f7_ac5_movingShowsProgressAndLocksFinish() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let gate = GatedHomepage(inner: try Self.moveHomepage())
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.capsuleCenter == .finish)
+        await gate.close()
+
+        let task = Task { await model.move(.previous) }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)
+        #expect(model.isMoving == true)
+        #expect(model.showsFinishButton == true)   // .moving wins over .finish (FR-1 order)
+        #expect(model.capsuleCenter == .moving)
+
+        model.requestFinish()
+
+        #expect(model.isConfirmingFinish == false)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+
+        await gate.open()
+        await task.value
+        #expect(model.isMoving == false)
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        #expect(model.capsuleCenter == .finish)   // 09/11 is unread on an empty store
+        #expect(model.isConfirmingFinish == false)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+    }
+
+    // F-7 AC-5 boundary: while the found entry's article is loading (state still .showing) it is .moving too
+    @Test func f7_ac5_movingDuringArticleBuildShowsProgress() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let gate = ArticleGatedHomepage(inner: try Self.moveHomepage())
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        let shown = model.state
+        await gate.close()
+
+        let task = Task { await model.move(.previous) }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)
+        #expect(model.state == shown)
+        #expect(model.isMoving == true)
+        #expect(model.capsuleCenter == .moving)
+        model.requestFinish()
+        model.confirmFinish()
+        #expect(model.isConfirmingFinish == false)
+        #expect(model.isFinished == false)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+
+        await gate.open()
+        await task.value
+        #expect(model.capsuleCenter == .finish)
+    }
+
+    // F-7 AC-6 (US-1 기준 7): center follows the shown entry across moves; store unchanged
+    @Test func f7_ac6_centerFollowsMovedEntry() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        env.defaults.set("2025/09/11", forKey: "readingProgress.lastSeenOld")
+        let snapshot = env.rawSnapshot()
+        #expect(snapshot == ["2025/09/11", nil, nil, nil])
+        let model = try Self.moveModel(env, try Self.old0912())
+
+        await model.load()
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(model.capsuleCenter == .finish)
+
+        await model.move(.previous)
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        #expect(model.isRead == true)
+        #expect(model.capsuleCenter == .dot)
+
+        await model.move(.next)
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(model.capsuleCenter == .finish)
+        #expect(env.rawSnapshot() == snapshot)
+    }
+
+    // F-7 AC-6 boundary: a failed move keeps the entry → still .finish; a move that ends in .networkError → .dot
+    @Test func f7_ac6_centerAfterFailedMoves() async throws {
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            await model.move(.next)   // no 09/12 on the empty-search homepage
+            #expect(model.notice == "다음 묵상을 찾지 못했습니다")
+            #expect(model.capsuleCenter == .finish)
+        }
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            let homepage = try Self.moveHomepage()
+            await homepage.setArticle(15155, .failure(URLError(.notConnectedToInternet)))
+            let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                                  homepage: homepage, youtube: try Self.youtube0713())
+            await model.load()
+            #expect(model.capsuleCenter == .finish)
+            await model.move(.previous)
+            #expect(model.state == .networkError)
+            #expect(model.capsuleCenter == .dot)
+            model.requestFinish()
+            #expect(model.isConfirmingFinish == false)
+            Self.expectStoreUntouched(env)
+        }
+    }
+
+    // F-7 AC-7 (FR-3, US-2 기준 1): requestFinish only opens the sheet; store, state, entry untouched; idempotent
+    @Test func f7_ac7_requestFinishOpensConfirmationOnly() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+        await model.load()
+        let state = model.state
+        let entry = model.entry
+
+        model.requestFinish()
+
+        #expect(model.isConfirmingFinish == true)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+        #expect(model.isFinished == false)
+        #expect(model.state == state)
+        #expect(model.entry == entry)
+        #expect(model.capsuleCenter == .finish)
+
+        model.requestFinish()
+
+        #expect(model.isConfirmingFinish == true)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+        #expect(model.isFinished == false)
+        #expect(model.state == state)
+        #expect(model.entry == entry)
+        #expect(model.capsuleCenter == .finish)
+        Self.expectStoreUntouched(env)
+    }
+
+    // F-7 AC-8 (US-2 기준 4): cancelFinish closes the sheet only; the button can be pressed again
+    @Test func f7_ac8_cancelFinishKeepsEverything() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+        await model.load()
+        let state = model.state
+        let entry = model.entry
+        model.requestFinish()
+        #expect(model.isConfirmingFinish == true)
+
+        model.cancelFinish()
+
+        #expect(model.isConfirmingFinish == false)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+        #expect(model.isFinished == false)
+        #expect(model.state == state)
+        #expect(model.entry == entry)
+        #expect(model.capsuleCenter == .finish)
+
+        model.requestFinish()
+        #expect(model.isConfirmingFinish == true)
+        Self.expectStoreUntouched(env)
+    }
+
+    // F-7 AC-8 boundary: cancelFinish without an open sheet is a no-op
+    @Test func f7_ac8_cancelWithoutRequestIsNoOp() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+        await model.load()
+        let state = model.state
+
+        model.cancelFinish()
+
+        #expect(model.isConfirmingFinish == false)
+        #expect(model.isFinished == false)
+        #expect(model.state == state)
+        #expect(model.capsuleCenter == .finish)
+        Self.expectStoreUntouched(env)
+    }
+
+    // F-7 AC-9 (FR-4, US-2 기준 3): request → confirm saves exactly like markSeen and finishes
+    @Test func f7_ac9_confirmFinishSavesAndFinishes() async throws {
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            let state = model.state
+            model.requestFinish()
+            #expect(model.isConfirmingFinish == true)
+            #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+
+            model.confirmFinish()
+
+            #expect(env.rawSnapshot() == ["2025/09/11", "2020/07/11", nil, nil])
+            #expect(model.isFinished == true)
+            #expect(model.isConfirmingFinish == false)
+            #expect(model.capsuleCenter == .dot)
+            #expect(model.state == state)
+        }
+        do {
+            let env = try Env(2026, 11, 26, 13)
+            defer { env.cleanup() }
+            let model = try Self.newModel(env, homepage: try Self.newHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            let state = model.state
+            #expect(model.capsuleCenter == .finish)
+            model.requestFinish()
+
+            model.confirmFinish()
+
+            #expect(env.defaults.string(forKey: "readingProgress.lastSeenNew") == "2020/07/13")
+            #expect(env.defaults.object(forKey: "readingProgress.finishedDayOld") == nil)
+            #expect(env.defaults.object(forKey: "readingProgress.finishedDayNew") == nil)
+            #expect(env.rawSnapshot() == ["2025/09/10", "2020/07/13", nil, nil])
+            #expect(model.isFinished == true)
+            #expect(model.isConfirmingFinish == false)
+            #expect(model.capsuleCenter == .dot)
+            #expect(model.state == state)
+        }
+    }
+
+    // F-7 AC-9 boundary (DESIGN 3-2): confirmFinish does not require isConfirmingFinish — the binding may
+    // clear the flag (cancelFinish) before the sheet's confirm action runs; the confirm must still save.
+    @Test func f7_ac9_confirmAfterBindingClearedStillSaves() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+        await model.load()
+        model.requestFinish()
+        model.cancelFinish()   // binding setter(false) fires first
+        #expect(model.isConfirmingFinish == false)
+
+        model.confirmFinish()
+
+        #expect(env.rawSnapshot() == ["2025/09/11", "2020/07/11", nil, nil])
+        #expect(model.isFinished == true)
+        #expect(model.isConfirmingFinish == false)
+        #expect(model.capsuleCenter == .dot)
+
+        // after finishing, the capsule is a dot and request is ignored
+        model.requestFinish()
+        #expect(model.isConfirmingFinish == false)
+    }
+
+    // F-7 AC-10 (FR-4 경계): confirmFinish follows markSeen's guards; isConfirmingFinish always ends false
+    @Test func f7_ac10_confirmFinishFollowsMarkSeenGuards() async throws {
+        // (a) read entry
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            env.defaults.set("2025/09/12", forKey: "readingProgress.lastSeenOld")
+            let snapshot = env.rawSnapshot()
+            let model = try Self.moveModel(env, try Self.old0912())
+            await model.load()
+            #expect(model.isRead == true)
+
+            model.confirmFinish()
+
+            #expect(env.rawSnapshot() == snapshot)
+            #expect(model.isFinished == false)
+            #expect(model.isConfirmingFinish == false)
+        }
+        // (b) .loading
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+
+            model.confirmFinish()
+
+            #expect(model.state == .loading)
+            #expect(model.isFinished == false)
+            #expect(model.isConfirmingFinish == false)
+            #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+        }
+        // (c) .networkError
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            let homepage = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                        defaultSearch: try Self.emptyPage())
+            let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+            await model.load()
+            #expect(model.state == .networkError)
+
+            model.confirmFinish()
+
+            #expect(model.isFinished == false)
+            #expect(model.isConfirmingFinish == false)
+            Self.expectStoreUntouched(env)
+        }
+        // (d) second confirm after a successful one
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            model.requestFinish()
+            model.confirmFinish()
+            let snapshot = env.rawSnapshot()
+            #expect(snapshot == ["2025/09/11", "2020/07/11", nil, nil])
+
+            try env.setTime(2026, 11, 27, 7)
+            model.confirmFinish()
+
+            #expect(env.rawSnapshot() == snapshot)
+            #expect(model.isFinished == true)
+            #expect(model.isConfirmingFinish == false)
+        }
+    }
+
+    // F-7 AC-11 (US-2 기준 2, FR-7): copy is fixed; the title has no date or passage characters
+    @Test func f7_ac11_finishConfirmationCopy() {
+        #expect(FinishConfirmation.buttonLabel == "다 봤어요")
+        #expect(FinishConfirmation.confirmLabel == "다 봤어요")
+        #expect(FinishConfirmation.cancelLabel == "취소")
+        #expect(FinishConfirmation.title == "다 봤어요로 표시할까요?")
+        #expect(!FinishConfirmation.title.contains(where: { "0123456789/:".contains($0) }))
+    }
 }
 
 /// Wraps a fetcher; while closed, article (`no=`) requests suspend until `open()`. Search requests pass through.
