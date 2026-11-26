@@ -17,14 +17,6 @@ struct DevotionScreenView: View {
                 guard let new else { return nil }
                 return new.succeeded ? .impact(weight: .light) : .warning
             }
-            .confirmationDialog(
-                FinishConfirmation.title,
-                isPresented: finishDialogBinding,
-                titleVisibility: .visible
-            ) {
-                Button(FinishConfirmation.confirmLabel) { model.confirmFinish() }
-                Button(FinishConfirmation.cancelLabel, role: .cancel) { model.cancelFinish() }
-            }
             .task { await model.load() }
             .onChange(of: model.isFinished) { _, finished in
                 if finished { dismiss() }
@@ -68,6 +60,14 @@ struct DevotionScreenView: View {
                 .contentShape(Rectangle())
                 .accessibilityLabel(FinishConfirmation.buttonLabel)
                 .disabled(navigationDisabled)
+                .confirmationDialog(
+                    FinishConfirmation.title,
+                    isPresented: finishDialogBinding,
+                    titleVisibility: .visible
+                ) {
+                    Button(FinishConfirmation.confirmLabel) { model.confirmFinish() }
+                    Button(FinishConfirmation.cancelLabel, role: .cancel) { model.cancelFinish() }
+                }
         }
     }
 
