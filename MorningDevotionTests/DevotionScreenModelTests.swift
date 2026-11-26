@@ -1735,6 +1735,286 @@ struct DevotionScreenModelTests {
         #expect(FinishConfirmation.title == "다 봤어요로 표시할까요?")
         #expect(!FinishConfirmation.title.contains(where: { "0123456789/:".contains($0) }))
     }
+
+    // MARK: - F-8 capsule only after the article is loaded (showsCapsule)
+
+    /// Polls `count` until something is parked (bounded), like the F-4 / F-7 gated tests.
+    private static func waitParked(_ count: () async -> Int) async -> Int {
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await count()
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        return waiting
+    }
+
+    // F-8 AC-1 (FR-1): right after init (.loading, before load) no capsule, even though the entry is unread
+    @Test func f8_ac1_noCapsuleBeforeLoad() throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+
+        #expect(model.state == .loading)
+        #expect(model.showsFinishButton == true)
+        #expect(model.isMoving == false)
+        #expect(model.showsCapsule == false)
+    }
+
+    // F-8 AC-2 (FR-1): a successful load shows the article and the capsule
+    @Test func f8_ac2_capsuleAfterSuccessfulLoad() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+
+        await model.load()
+
+        try Self.expectOld(model.state)
+        #expect(model.showsCapsule == true)
+    }
+
+    // F-8 AC-2 boundary: same for a new-testament entry
+    @Test func f8_ac2_capsuleAfterSuccessfulLoadNewTestament() async throws {
+        let env = try Env(2026, 11, 26, 13)
+        defer { env.cleanup() }
+        let model = try Self.newModel(env, homepage: try Self.newHomepage(), youtube: try Self.youtube0713())
+        #expect(model.showsCapsule == false)
+
+        await model.load()
+
+        #expect(Self.content(model.state)?.entry.articleNo == 11480)
+        #expect(model.showsCapsule == true)
+    }
+
+    // F-8 AC-3 (FR-2): article request fails → .networkError, no capsule
+    @Test func f8_ac3_noCapsuleOnNetworkError() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                    defaultSearch: try Self.emptyPage())
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+
+        await model.load()
+
+        #expect(model.state == .networkError)
+        #expect(model.showsFinishButton == true)
+        #expect(model.showsCapsule == false)
+    }
+
+    // F-8 AC-4 (FR-1, FR-2, US-1 기준 4): retry → no capsule while .loading → capsule once .showing
+    @Test func f8_ac4_retryHidesCapsuleUntilShown() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let inner = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                 defaultSearch: try Self.emptyPage())
+        let gate = ArticleGatedHomepage(inner: inner)
+        let model = env.model(testament: .oldTestament, entry: try Self.oldEntry(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.state == .networkError)
+        #expect(model.showsCapsule == false)
+
+        await inner.setArticle(15155, .html(try Self.html("cast-body-15155")))
+        await gate.close()
+        let task = Task { await model.retry() }
+        let waiting = await Self.waitParked { await gate.waitingCount }
+        try #require(waiting == 1)   // article 15155 parked
+
+        #expect(model.state == .loading)
+        #expect(model.showsCapsule == false)
+
+        await gate.open()
+        await task.value
+        try Self.expectOld(model.state)
+        #expect(model.showsCapsule == true)
+    }
+
+    // F-8 AC-5 (FR-3): during a move search (state stays .showing) the capsule stays, center .moving
+    @Test func f8_ac5_capsuleStaysDuringMoveSearch() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let gate = GatedHomepage(inner: try Self.moveHomepage())
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        let shown = model.state
+        #expect(model.showsCapsule == true)
+        await gate.close()
+
+        let task = Task { await model.move(.previous) }
+        let waiting = await Self.waitParked { await gate.waitingCount }
+        try #require(waiting == 1)   // search parked
+
+        #expect(model.state == shown)
+        #expect(model.isMoving == true)
+        #expect(model.capsuleCenter == .moving)
+        #expect(model.showsCapsule == true)
+
+        await gate.open()
+        await task.value
+        #expect(model.isMoving == false)
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        #expect(Self.content(model.state)?.entry.articleNo == 15155)
+        #expect(model.showsCapsule == true)
+    }
+
+    // F-8 AC-5 boundary: while the found entry's article is built (state still .showing) the capsule stays
+    @Test func f8_ac5_capsuleStaysDuringMoveArticleBuild() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let gate = ArticleGatedHomepage(inner: try Self.moveHomepage())
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        let shown = model.state
+        await gate.close()
+
+        let task = Task { await model.move(.previous) }
+        let waiting = await Self.waitParked { await gate.waitingCount }
+        try #require(waiting == 1)   // search 09/11 done, article 15155 parked
+
+        #expect(model.state == shown)
+        #expect(model.isMoving == true)
+        #expect(model.capsuleCenter == .moving)
+        #expect(model.showsCapsule == true)
+
+        await gate.open()
+        await task.value
+        #expect(model.isMoving == false)
+        #expect(Self.content(model.state)?.entry.articleNo == 15155)
+        #expect(model.showsCapsule == true)
+    }
+
+    // F-8 AC-6 (US-1 기준 7): the moved-to article fails → .networkError, capsule gone
+    @Test func f8_ac6_moveEndingInNetworkErrorHidesCapsule() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        await homepage.setArticle(15155, .failure(URLError(.notConnectedToInternet)))
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.showsCapsule == true)
+
+        await model.move(.previous)
+
+        #expect(model.entry.date == Self.date(2025, 9, 11))
+        #expect(model.state == .networkError)
+        #expect(model.isMoving == false)
+        #expect(model.showsCapsule == false)
+    }
+
+    // F-8 AC-7 (FR-3): a move that finds nothing keeps .showing and the capsule
+    @Test func f8_ac7_failedSearchKeepsCapsule() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+        await model.load()
+        let shown = model.state
+
+        await model.move(.next)
+
+        #expect(model.notice == "다음 묵상을 찾지 못했습니다")
+        #expect(model.state == shown)
+        #expect(model.showsCapsule == true)
+    }
+
+    // F-8 AC-7 boundary: a search network error (outcome .networkError, not state) keeps the capsule too
+    @Test func f8_ac7_searchNetworkErrorKeepsCapsule() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        await homepage.setSearch("2025/09/12", .failure(URLError(.notConnectedToInternet)))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        let shown = model.state
+
+        await model.move(.next)
+
+        #expect(model.notice == "인터넷 연결을 확인해 주세요")
+        #expect(model.state == shown)
+        #expect(model.showsCapsule == true)
+    }
+
+    // F-8 AC-8 (FR-1, FR-2): .networkError → refreshIfStale with the article back → capsule shown
+    @Test func f8_ac8_refreshIfStaleShowsCapsule() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                    defaultSearch: try Self.emptyPage())
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.state == .networkError)
+        #expect(model.showsCapsule == false)
+
+        await homepage.setArticle(15155, .html(try Self.html("cast-body-15155")))
+        await model.refreshIfStale()
+
+        try Self.expectOld(model.state)
+        #expect(model.showsCapsule == true)
+
+        // refreshIfStale on .showing does nothing → capsule stays
+        let before = await homepage.requested.count
+        await model.refreshIfStale()
+        #expect(await homepage.requested.count == before)
+        #expect(model.showsCapsule == true)
+    }
+
+    // F-8 boundary (DESIGN 4장: isFinished / isRead not looked at): finished or already-read entries keep the capsule
+    @Test func f8_capsuleIgnoresReadAndFinished() async throws {
+        // finished via confirmFinish → center .dot, capsule still shown
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            model.requestFinish()
+            model.confirmFinish()
+            #expect(model.isFinished == true)
+            #expect(model.capsuleCenter == .dot)
+            #expect(model.showsCapsule == true)
+        }
+        // already read on entry → showsFinishButton false, capsule still shown after load, hidden before
+        do {
+            let env = try Env(2026, 11, 26, 7)
+            defer { env.cleanup() }
+            env.defaults.set("2025/09/12", forKey: "readingProgress.lastSeenOld")
+            let model = try Self.moveModel(env, try Self.old0912())
+            #expect(model.isRead == true)
+            #expect(model.showsFinishButton == false)
+            #expect(model.showsCapsule == false)
+            await model.load()
+            #expect(model.showsCapsule == true)
+        }
+    }
+
+    // F-8 boundary (FR-2, JUDGE #8): a move started from .networkError keeps .networkError while searching → no capsule
+    @Test func f8_moveFromNetworkErrorStaysHiddenUntilShown() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let inner = try Self.moveHomepage()
+        await inner.setArticle(15157, .failure(URLError(.notConnectedToInternet)))
+        let gate = GatedHomepage(inner: inner)
+        let model = env.model(testament: .oldTestament, entry: try Self.old0912(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.state == .networkError)
+        await gate.close()
+
+        let task = Task { await model.move(.previous) }
+        let waiting = await Self.waitParked { await gate.waitingCount }
+        try #require(waiting == 1)
+
+        #expect(model.isMoving == true)
+        #expect(model.state == .networkError)
+        #expect(model.capsuleCenter == .moving)
+        #expect(model.showsCapsule == false)   // isMoving does not bring the capsule back
+
+        await gate.open()
+        await task.value
+        #expect(Self.content(model.state)?.entry.articleNo == 15155)
+        #expect(model.showsCapsule == true)
+    }
 }
 
 /// Wraps a fetcher; while closed, article (`no=`) requests suspend until `open()`. Search requests pass through.
