@@ -70,6 +70,41 @@ final class DevotionScreenModel {
         await load()
     }
 
+    // MARK: Bible sheet (F-9)
+
+    private(set) var bibleSheet: BibleSheetState = .closed
+    /// One-slot cache keyed by the entry date it was loaded for.
+    private var bibleCache: (date: DevotionDate, text: BiblePassageText)?
+
+    /// Button shows while an article is on screen and the passage's book has a code.
+    /// Independent of isMoving (same rule as showsCapsule).
+    var showsBibleButton: Bool {
+        guard case .showing = state, let passage = entry.passage else { return false }
+        return BibleBookCode.code(for: passage.book) != nil
+    }
+
+    /// Never touches state, entry, notice, feedback or the store.
+    func openBible() async {
+        guard showsBibleButton, !isMoving, !bibleSheet.isPresented,
+              let passage = entry.passage else { return }
+        let date = entry.date
+        let title = entry.passageText
+        if let cache = bibleCache, cache.date == date {
+            bibleSheet = .showing(cache.text)
+            return
+        }
+        bibleSheet = .loading(title: title)
+        let text = await BiblePassageLoader.load(passage, title: title, using: fetcher)
+        if let text { bibleCache = (date, text) }
+        // Drop a late result if the sheet was closed or the entry changed meanwhile.
+        guard case .loading = bibleSheet, entry.date == date else { return }
+        bibleSheet = text.map { .showing($0) } ?? .failed(title: title)
+    }
+
+    func closeBible() {
+        bibleSheet = .closed
+    }
+
     /// Shown while the confirmation action sheet is up. Only requestFinish sets it to true.
     private(set) var isConfirmingFinish: Bool = false
 
@@ -124,6 +159,7 @@ final class DevotionScreenModel {
             // Keep isMoving true and the current state until the new content is built.
             let built = await buildState(for: next)
             entry = next
+            bibleSheet = .closed
             state = built
             isMoving = false
             var succeeded = false

@@ -17,6 +17,8 @@ private actor FakeHomepage: DevotionHTMLFetching {
 
     private var search: [String: Reply]
     private var article: [Int: Reply]
+    /// F-9: bskorea chapter pages by `chap=` value (unknown → URLError(.fileDoesNotExist)).
+    private var bible: [Int: Reply] = [:]
     private let defaultSearch: String
     private(set) var requested: [URL] = []
 
@@ -28,6 +30,7 @@ private actor FakeHomepage: DevotionHTMLFetching {
 
     func setSearch(_ date: String, _ reply: Reply) { search[date] = reply }
     func setArticle(_ no: Int, _ reply: Reply) { article[no] = reply }
+    func setBible(_ chap: Int, _ reply: Reply) { bible[chap] = reply }
 
     func fetchHTML(from url: URL) async throws -> String {
         requested.append(url)
@@ -38,6 +41,10 @@ private actor FakeHomepage: DevotionHTMLFetching {
             reply = r
         } else if let date = items.first(where: { $0.name == "search" })?.value {
             reply = search[date] ?? .html(defaultSearch)
+        } else if items.contains(where: { $0.name == "book" }),
+                  let chapText = items.first(where: { $0.name == "chap" })?.value, let chap = Int(chapText) {
+            guard let r = bible[chap] else { throw URLError(.fileDoesNotExist) }
+            reply = r
         } else {
             throw URLError(.badURL)
         }
@@ -2014,6 +2021,522 @@ struct DevotionScreenModelTests {
         await task.value
         #expect(Self.content(model.state)?.entry.articleNo == 15155)
         #expect(model.showsCapsule == true)
+    }
+
+    // MARK: - F-9 Bible passage bottom sheet (bibleSheet, showsBibleButton, openBible, closeBible)
+
+    private static let bibleMessage = "인터넷 연결을 확인해 주세요"
+
+    private static func isBible(_ url: URL) -> Bool { query(url, "book") != nil }
+
+    /// "book=<code>&chap=<n>" for every bskorea request, in order.
+    private static func bibleRequests(_ urls: [URL]) -> [String] {
+        urls.filter(isBible).map { "book=\(query($0, "book") ?? "?")&chap=\(query($0, "chap") ?? "?")" }
+    }
+
+    private static func bibleRequests(_ homepage: FakeHomepage) async -> [String] {
+        bibleRequests(await homepage.requested)
+    }
+
+    private static func pro23() throws -> String { try html("bskorea-GAE-pro-23") }
+    private static func jhn5() throws -> String { try html("bskorea-GAE-jhn-5") }
+
+    private static func sheetText(_ sheet: BibleSheetState) -> BiblePassageText? {
+        if case .showing(let t) = sheet { return t }
+        return nil
+    }
+
+    /// (chapter, first verse, last verse, count) per section.
+    private static func shape(_ text: BiblePassageText?) -> [[Int]]? {
+        text?.sections.map { s in [s.chapter, s.verses.first?.number ?? -1, s.verses.last?.number ?? -1, s.verses.count] }
+    }
+
+    /// Hand-made entry on 2025/09/11 #15155 with the given passage.
+    private static func customEntry(_ passage: Passage?, text: String) -> DevotionEntry {
+        DevotionEntry(date: date(2025, 9, 11), weekday: "목", passageText: text,
+                      passage: passage, author: nil, articleNo: 15155)
+    }
+
+    // F-9 AC-13 (FR-1): button only when .showing with a known book
+    @Test func f9_ac13_buttonFollowsState() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let model = try Self.oldModel(env, homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+        #expect(model.state == .loading)
+        #expect(model.showsBibleButton == false)
+        await model.load()
+        try Self.expectOld(model.state)
+        #expect(model.showsBibleButton == true)
+        #expect(model.bibleSheet == .closed)
+    }
+
+    // F-9 AC-13: article failure → .networkError → no button
+    @Test func f9_ac13_noButtonOnNetworkError() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                    defaultSearch: try Self.emptyPage())
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(model.state == .networkError)
+        #expect(model.showsBibleButton == false)
+    }
+
+    // F-9 AC-13 (FR-7): passage nil, or a book without a code → no button even when .showing
+    @Test func f9_ac13_noButtonWithoutPassageOrCode() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let entries = [
+            Self.customEntry(nil, text: "잠언 23장"),
+            Self.customEntry(Passage(book: "고린도전", chapter: 13, startVerse: 1, endChapter: 13, endVerse: 13),
+                             text: "고린도전 13:1-13"),
+        ]
+        for entry in entries {
+            let model = env.model(testament: .oldTestament, entry: entry,
+                                  homepage: try Self.oldHomepage(), youtube: try Self.youtube0713())
+            await model.load()
+            try #require(Self.content(model.state) != nil)
+            #expect(model.showsBibleButton == false, "\(entry.passageText)")
+        }
+    }
+
+    // F-9 AC-13 boundary (same rule as showsCapsule): button stays while a move is searching; openBible is ignored then
+    @Test func f9_ac13_buttonDuringMoveButOpenIgnored() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let inner = try Self.moveHomepage()
+        await inner.setBible(23, .html(try Self.pro23()))
+        let gate = GatedHomepage(inner: inner)
+        let model = env.model(testament: .oldTestament, entry: try Self.oldEntry(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        await gate.close()
+        let task = Task { await model.move(.next) }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)
+        #expect(model.isMoving == true)
+        #expect(model.showsBibleButton == true)
+
+        await model.openBible()
+        #expect(model.bibleSheet == .closed)
+        #expect(await Self.bibleRequests(inner).isEmpty)
+
+        await gate.open()
+        await task.value
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+    }
+
+    // F-9 AC-14 (FR-2, FR-3, US-3): open → one Proverbs 23 request → 12 verses; screen and store untouched
+    @Test func f9_ac14_openShowsPassageOld() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        await homepage.setBible(23, .html(try Self.pro23()))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(await Self.bibleRequests(homepage).isEmpty)   // 확정 결정 3: no prefetch
+        let shown = model.state
+        let entry = model.entry
+
+        await model.openBible()
+
+        let t = try #require(Self.sheetText(model.bibleSheet))
+        #expect(t.title == "잠언 23:24-35")
+        #expect(Self.shape(t) == [[23, 24, 35, 12]])
+        #expect(t.sections.first?.verses.map(\.number) == Array(24...35))
+        #expect(t.sections.first?.verses.first(where: { $0.number == 25 })?.text
+            == "네 부모를 즐겁게 하며 너를 낳은 어미를 기쁘게 하라")
+        #expect(await Self.bibleRequests(homepage) == ["book=pro&chap=23"])
+        #expect(model.state == shown)
+        #expect(model.entry == entry)
+        #expect(model.notice == nil)
+        #expect(model.feedback == nil)
+        #expect(model.isFinished == false)
+        Self.expectStoreUntouched(env)
+    }
+
+    // F-9 AC-14: new testament John 5:30-47 → book=jhn&chap=5, 18 verses
+    @Test func f9_ac14_openShowsPassageNew() async throws {
+        let env = try Env(2026, 11, 26, 13)
+        defer { env.cleanup() }
+        let homepage = try Self.newHomepage()
+        await homepage.setBible(5, .html(try Self.jhn5()))
+        let model = try Self.newModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        #expect(await Self.bibleRequests(homepage).isEmpty)
+        let shown = model.state
+
+        await model.openBible()
+
+        let t = try #require(Self.sheetText(model.bibleSheet))
+        #expect(t.title == "요한복음 5:30-47")
+        #expect(Self.shape(t) == [[5, 30, 47, 18]])
+        #expect(t.sections.first?.verses.first(where: { $0.number == 31 })?.text.contains("증언하면") == true)
+        #expect(await Self.bibleRequests(homepage) == ["book=jhn&chap=5"])
+        #expect(model.state == shown)
+        #expect(env.rawSnapshot() == [nil, nil, nil, nil])
+    }
+
+    // F-9 AC-14 boundary: load()/retry()/refreshIfStale() never request the Bible
+    @Test func f9_ac14_loadPathsDoNotFetchBible() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        await homepage.setBible(23, .html(try Self.pro23()))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.retry()
+        await model.refreshIfStale()
+        #expect(await Self.bibleRequests(homepage).isEmpty)
+        #expect(model.bibleSheet == .closed)
+    }
+
+    // F-9 AC-15 (FR-6): Bible failure → .failed in the sheet only; the devotion screen is unchanged
+    @Test(arguments: [0, 1, 2])
+    func f9_ac15_openFailureShowsMessageInSheet(kind: Int) async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        switch kind {
+        case 0: await homepage.setBible(23, .failure(URLError(.notConnectedToInternet)))
+        case 1: await homepage.setBible(23, .failure(DevotionLoadError.badStatus(500)))
+        default: await homepage.setBible(23, .html("<html></html>"))
+        }
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        let shown = model.state
+
+        await model.openBible()
+
+        #expect(model.bibleSheet == .failed(title: "잠언 23:24-35"))
+        #expect(model.bibleSheet.message == Self.bibleMessage)
+        #expect(model.bibleSheet.isPresented == true)
+        #expect(model.bibleSheet.title == "잠언 23:24-35")
+        #expect(model.state == shown)
+        #expect(model.notice == nil)
+        #expect(model.feedback == nil)
+        #expect(await Self.bibleRequests(homepage) == ["book=pro&chap=23"])
+        Self.expectStoreUntouched(env)
+    }
+
+    // F-9 AC-16 (확정 결정 6): close → reopen on the same devotion uses the cache (no new request)
+    @Test func f9_ac16_closeAndReopenUsesCache() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        await homepage.setBible(23, .html(try Self.pro23()))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.openBible()
+        let opened = model.bibleSheet
+        try #require(Self.sheetText(opened) != nil)
+
+        model.closeBible()
+        #expect(model.bibleSheet == .closed)
+        #expect(model.bibleSheet.isPresented == false)
+
+        await model.openBible()
+        #expect(model.bibleSheet == opened)
+        #expect(await Self.bibleRequests(homepage) == ["book=pro&chap=23"])
+    }
+
+    // F-9 AC-16: failures are not cached — after a failure, close, fix the reply, reopen → new request and .showing
+    @Test func f9_ac16_failureNotCached() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        await homepage.setBible(23, .failure(URLError(.notConnectedToInternet)))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.openBible()
+        #expect(model.bibleSheet == .failed(title: "잠언 23:24-35"))
+
+        model.closeBible()
+        #expect(model.bibleSheet == .closed)
+        await homepage.setBible(23, .html(try Self.pro23()))
+        await model.openBible()
+
+        let t = try #require(Self.sheetText(model.bibleSheet))
+        #expect(Self.shape(t) == [[23, 24, 35, 12]])
+        #expect(await Self.bibleRequests(homepage) == ["book=pro&chap=23", "book=pro&chap=23"])
+    }
+
+    // F-9 AC-17 (US-3): after moving to 2020/07/14 the sheet loads 요한복음 6:1-21 (cache is per date)
+    @Test func f9_ac17_moveThenOpenLoadsNewPassage() async throws {
+        let env = try Env(2026, 11, 26, 13)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        await homepage.setBible(5, .html(try Self.jhn5()))
+        await homepage.setBible(6, .html(try Self.jhn5()))
+        let model = try Self.newModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.openBible()
+        #expect(Self.sheetText(model.bibleSheet)?.title == "요한복음 5:30-47")
+        model.closeBible()
+
+        await model.move(.next)
+        #expect(model.entry.date == Self.date(2020, 7, 14))
+        await model.openBible()
+
+        #expect(model.bibleSheet.title == "요한복음 6:1-21")
+        let t = try #require(Self.sheetText(model.bibleSheet))
+        #expect(Self.shape(t) == [[6, 1, 21, 21]])
+        #expect(await Self.bibleRequests(homepage) == ["book=jhn&chap=5", "book=jhn&chap=6"])
+    }
+
+    // F-9 AC-17: an open sheet is closed by a move that ends in .moved (article success)
+    @Test func f9_ac17_movedClosesOpenSheet() async throws {
+        let env = try Env(2026, 11, 26, 13)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        await homepage.setBible(5, .html(try Self.jhn5()))
+        let model = try Self.newModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.openBible()
+        try #require(Self.sheetText(model.bibleSheet) != nil)
+
+        await model.move(.next)
+
+        #expect(model.entry.date == Self.date(2020, 7, 14))
+        #expect(model.bibleSheet == .closed)
+        #expect(model.bibleSheet.isPresented == false)
+    }
+
+    // F-9 AC-17 boundary (§1-1 case 3): .moved but the article fails → entry changes, .networkError, sheet closed
+    @Test func f9_ac17_movedWithArticleFailureClosesSheet() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.moveHomepage()
+        await homepage.setBible(23, .html(try Self.pro23()))
+        await homepage.setArticle(15157, .failure(URLError(.notConnectedToInternet)))
+        let model = env.model(testament: .oldTestament, entry: try Self.oldEntry(),
+                              homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.openBible()
+        try #require(Self.sheetText(model.bibleSheet) != nil)
+
+        await model.move(.next)
+
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(model.state == .networkError)
+        #expect(model.bibleSheet == .closed)
+        #expect(model.showsBibleButton == false)
+    }
+
+    // F-9 AC-17: a move whose search ends in .notFound / .networkError leaves the open sheet as it was
+    @Test func f9_ac17_failedSearchKeepsSheet() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()   // every search is the 0-entry page
+        await homepage.setBible(23, .html(try Self.pro23()))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.openBible()
+        let opened = model.bibleSheet
+        try #require(Self.sheetText(opened) != nil)
+
+        await model.move(.next)
+        #expect(model.notice == "다음 묵상을 찾지 못했습니다")
+        #expect(model.bibleSheet == opened)
+
+        await homepage.setSearch("2025/09/12", .failure(URLError(.notConnectedToInternet)))
+        await model.move(.next)
+        #expect(model.notice == "인터넷 연결을 확인해 주세요")
+        #expect(model.bibleSheet == opened)
+        #expect(await Self.bibleRequests(homepage) == ["book=pro&chap=23"])
+    }
+
+    // F-9 AC-18: openBible is ignored in .loading, .networkError and for passage-less entries
+    @Test func f9_ac18_openIgnoredWithoutButton() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        do {
+            let homepage = try Self.oldHomepage()
+            await homepage.setBible(23, .html(try Self.pro23()))
+            let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+            #expect(model.state == .loading)
+            await model.openBible()
+            #expect(model.bibleSheet == .closed)
+            #expect(await Self.bibleRequests(homepage).isEmpty)
+        }
+        do {
+            let homepage = FakeHomepage(article: [15155: .failure(URLError(.notConnectedToInternet))],
+                                        defaultSearch: try Self.emptyPage())
+            await homepage.setBible(23, .html(try Self.pro23()))
+            let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+            await model.load()
+            #expect(model.state == .networkError)
+            await model.openBible()
+            #expect(model.bibleSheet == .closed)
+            #expect(await Self.bibleRequests(homepage).isEmpty)
+        }
+        do {
+            let homepage = try Self.oldHomepage()
+            await homepage.setBible(23, .html(try Self.pro23()))
+            let model = env.model(testament: .oldTestament, entry: Self.customEntry(nil, text: "잠언 23장"),
+                                  homepage: homepage, youtube: try Self.youtube0713())
+            await model.load()
+            try #require(Self.content(model.state) != nil)
+            await model.openBible()
+            #expect(model.bibleSheet == .closed)
+            #expect(await Self.bibleRequests(homepage).isEmpty)
+        }
+    }
+
+    // F-9 AC-18: a second openBible on a presented sheet (.showing or .failed) sends no request
+    @Test func f9_ac18_openIgnoredWhilePresented() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let homepage = try Self.oldHomepage()
+        await homepage.setBible(23, .html(try Self.pro23()))
+        let model = try Self.oldModel(env, homepage: homepage, youtube: try Self.youtube0713())
+        await model.load()
+        await model.openBible()
+        let opened = model.bibleSheet
+        try #require(Self.sheetText(opened) != nil)
+        await model.openBible()
+        #expect(model.bibleSheet == opened)
+        #expect(await Self.bibleRequests(homepage) == ["book=pro&chap=23"])
+
+        let failing = try Self.oldHomepage()
+        await failing.setBible(23, .failure(URLError(.notConnectedToInternet)))
+        let model2 = try Self.oldModel(env, homepage: failing, youtube: try Self.youtube0713())
+        await model2.load()
+        await model2.openBible()
+        #expect(model2.bibleSheet == .failed(title: "잠언 23:24-35"))
+        await failing.setBible(23, .html(try Self.pro23()))
+        await model2.openBible()
+        #expect(model2.bibleSheet == .failed(title: "잠언 23:24-35"))
+        #expect(await Self.bibleRequests(failing) == ["book=pro&chap=23"])
+    }
+
+    // F-9 AC-18 boundary: .loading while the request is in flight; closing then must not reopen the sheet
+    @Test func f9_ac18_closeDuringLoadDoesNotReopen() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let inner = try Self.oldHomepage()
+        await inner.setBible(23, .html(try Self.pro23()))
+        let gate = BibleGatedHomepage(inner: inner)
+        let model = env.model(testament: .oldTestament, entry: try Self.oldEntry(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        await gate.close()
+
+        let task = Task { await model.openBible() }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)
+        #expect(model.bibleSheet == .loading(title: "잠언 23:24-35"))
+        #expect(model.bibleSheet.isPresented == true)
+        #expect(model.bibleSheet.title == "잠언 23:24-35")
+        #expect(model.bibleSheet.message == nil)
+
+        model.closeBible()
+        #expect(model.bibleSheet == .closed)
+        await gate.open()
+        await task.value
+        #expect(model.bibleSheet == .closed)
+
+        await model.openBible()
+        #expect(Self.shape(Self.sheetText(model.bibleSheet)) == [[23, 24, 35, 12]])
+    }
+
+    // F-9 AC-18 boundary: a move that lands while the Bible request is in flight → result is not shown
+    @Test func f9_ac18_moveDuringLoadDoesNotShowStaleResult() async throws {
+        let env = try Env(2026, 11, 26, 7)
+        defer { env.cleanup() }
+        let inner = try Self.moveHomepage()
+        await inner.setBible(23, .html(try Self.pro23()))
+        let gate = BibleGatedHomepage(inner: inner)
+        let model = env.model(testament: .oldTestament, entry: try Self.oldEntry(),
+                              homepage: gate, youtube: try Self.youtube0713())
+        await model.load()
+        await gate.close()
+
+        let task = Task { await model.openBible() }
+        var waiting = 0
+        for _ in 0..<10_000 {
+            waiting = await gate.waitingCount
+            if waiting > 0 { break }
+            await Task.yield()
+        }
+        try #require(waiting == 1)
+        #expect(model.bibleSheet == .loading(title: "잠언 23:24-35"))
+
+        await model.move(.next)   // search/article pass through the gate
+        #expect(model.entry.date == Self.date(2025, 9, 12))
+        #expect(model.bibleSheet == .closed)
+
+        await gate.open()
+        await task.value
+        #expect(model.bibleSheet == .closed)
+    }
+
+    // F-9 AC-19: sheet state copy
+    @Test func f9_ac19_sheetStateCopy() {
+        let closed = BibleSheetState.closed
+        #expect(closed.isPresented == false)
+        #expect(closed.title == nil)
+        #expect(closed.message == nil)
+
+        let loading = BibleSheetState.loading(title: "x")
+        #expect(loading.isPresented == true)
+        #expect(loading.title == "x")
+        #expect(loading.message == nil)
+
+        let failed = BibleSheetState.failed(title: "x")
+        #expect(failed.isPresented == true)
+        #expect(failed.title == "x")
+        #expect(failed.message == "인터넷 연결을 확인해 주세요")
+
+        let t = BiblePassageText(title: "잠언 23:24-35",
+                                 sections: [BibleChapterSection(chapter: 23, verses: [BibleVerse(number: 24, text: "a")])])
+        let showing = BibleSheetState.showing(t)
+        #expect(showing.isPresented == true)
+        #expect(showing.title == "잠언 23:24-35")
+        #expect(showing.message == nil)
+    }
+}
+
+/// Wraps a fetcher; while closed, bskorea (`book=`) requests suspend until `open()`. Others pass through.
+private actor BibleGatedHomepage: DevotionHTMLFetching {
+    private let inner: any DevotionHTMLFetching
+    private var closed = false
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+
+    init(inner: any DevotionHTMLFetching) { self.inner = inner }
+
+    var waitingCount: Int { waiting.count }
+
+    func close() { closed = true }
+
+    func open() {
+        closed = false
+        let pending = waiting
+        waiting = []
+        pending.forEach { $0.resume() }
+    }
+
+    private func park(_ c: CheckedContinuation<Void, Never>) { waiting.append(c) }
+
+    func fetchHTML(from url: URL) async throws -> String {
+        let isBible = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.contains(where: { $0.name == "book" }) ?? false
+        if closed && isBible {
+            await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+                self.park(c)
+            }
+        }
+        return try await inner.fetchHTML(from: url)
     }
 }
 

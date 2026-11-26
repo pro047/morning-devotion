@@ -61,6 +61,32 @@ nonisolated enum FinishConfirmation {
     static let cancelLabel = "취소"
 }
 
+/// Bible bottom sheet (F-9). `.closed` = not presented.
+nonisolated enum BibleSheetState: Equatable, Sendable {
+    case closed
+    case loading(title: String)
+    case showing(BiblePassageText)
+    case failed(title: String)
+
+    var isPresented: Bool {
+        if case .closed = self { return false }
+        return true
+    }
+
+    var title: String? {
+        switch self {
+        case .closed: return nil
+        case .loading(let title), .failed(let title): return title
+        case .showing(let text): return text.title
+        }
+    }
+
+    var message: String? {
+        if case .failed = self { return "인터넷 연결을 확인해 주세요" }
+        return nil
+    }
+}
+
 nonisolated enum DevotionScreenState: Equatable, Sendable {
     case loading
     case showing(DevotionScreenContent)

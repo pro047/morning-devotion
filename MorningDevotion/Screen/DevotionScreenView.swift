@@ -12,9 +12,13 @@ struct DevotionScreenView: View {
 
     var body: some View {
         content
+            .overlay(alignment: .bottomTrailing) {
+                if model.showsBibleButton { bibleButton }
+            }
             .safeAreaInset(edge: .bottom) {
                 if model.showsCapsule { navigationCapsule }
             }
+            .sheet(isPresented: bibleSheetBinding) { bibleSheetContent }
             .sensoryFeedback(trigger: model.feedback) { _, new in
                 guard let new else { return nil }
                 return new.succeeded ? .impact(weight: .light) : .warning
@@ -28,6 +32,63 @@ struct DevotionScreenView: View {
                     Task { await model.refreshIfStale() }
                 }
             }
+    }
+
+    private var bibleButton: some View {
+        Button {
+            Task { await model.openBible() }
+        } label: {
+            Image(systemName: "book")
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: Circle())
+        .accessibilityLabel("성경 본문")
+        .disabled(model.isMoving)
+        .padding(.trailing, 16)
+        .padding(.bottom, 8)
+    }
+
+    private var bibleSheetBinding: Binding<Bool> {
+        Binding(
+            get: { model.bibleSheet.isPresented },
+            set: { if !$0 { model.closeBible() } }
+        )
+    }
+
+    private var bibleSheetContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if let title = model.bibleSheet.title {
+                Text(title).font(Theme.passageFont)
+            }
+            switch model.bibleSheet {
+            case .closed:
+                EmptyView()
+            case .loading:
+                ProgressView().frame(maxWidth: .infinity)
+            case .failed:
+                Text(model.bibleSheet.message ?? "").foregroundStyle(.secondary)
+            case .showing(let text):
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(Array(text.sections.enumerated()), id: \.offset) { index, section in
+                            if text.showsChapterHeader(at: index) {
+                                Text("\(section.chapter)장").font(.headline)
+                            }
+                            ForEach(section.verses, id: \.number) { verse in
+                                Text("\(verse.number) \(verse.text)")
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     private var navigationDisabled: Bool {
