@@ -87,6 +87,7 @@ struct DevotionScreenView: View {
             Spacer(minLength: 0)
         }
         .padding()
+        .padding(.top, 16)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
