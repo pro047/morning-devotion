@@ -2,7 +2,10 @@
 # 2026-11-20 수동 작성: sap config 가 Xcode 후보를 감지하지 못해 직접 넣었다. 이 머신에서 exit 0 확인.
 # 시뮬레이터는 deployment target(iOS 27.0) 이상이어야 한다.
 
-TEST_CMDS=xcodebuild test -project MorningDevotion.xcodeproj -scheme MorningDevotion -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.2' -quiet
+# 2026-11-27: xcodebuild test only shuts the simulator down if it booted it itself; an already-booted one stays up (memory pressure).
+# Shut it down after the run and keep the test exit code. Shutdown output is silenced: "already Shutdown" (code 405) would pollute FAIL_LOG.
+# 62A98FA5-... is the iPhone 17 / iOS 27.2 device that the destination below resolves to.
+TEST_CMDS=xcodebuild test -project MorningDevotion.xcodeproj -scheme MorningDevotion -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.2' -quiet; rc=$?; xcrun simctl shutdown 62A98FA5-B5D0-46B5-BF44-E675E7507CA3 >/dev/null 2>&1; exit $rc
 
 # 2026-11-20: Xcode 프로젝트 편집 CLI 는 샌드박스 안에서 project.xcproj 저장이 거부된다 (M4 impl BLOCKED, 밖에서는 exit 0 실측)
 SANDBOX_EXCLUDE=/Applications/Xcode.app/Contents/Developer/usr/bin/xcodeproj:*
