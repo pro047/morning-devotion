@@ -240,3 +240,108 @@
 - 빌드된 앱 `Info.plist` `CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconName = "AppIcon"`, 번들에 `AppIcon60x60@2x.png`·`AppIcon76x76@2x~ipad.png`
 - `sun.horizon.fill` 팔레트 순서: `paletteColors: [a, b]` 에서 a = 지평선, b = 해·햇살 (`[주황, 잉크]` 은 반대로 나옴). `sunrise.fill` 은 화살표가 붙어 버림
 - 실기기 눈 확인 (2026-11-23, 진성): 이전·다음 때 스피너 없음·카드 높이 그대로, 홈 화면 아이콘은 설치 직후 바로 새 것 (재부팅 불필요 — "아이콘 캐시" 추정은 해당 없었음)
+
+<!-- 2026-11-23 이동 (/done) -->
+## 최신 스트림 — 2026-11-23: 2025 묵상 영상이 생방송으로 나오는 버그 → F-6 설교 영상 검색 (resolved)
+
+**요청**: `/next` → PR #5 실기기 눈 확인 통과 반영 → "묵상 영상 어떻게 가져오나" → "2025/09/13(토) 잠언 24:11-22 에서 20분 설교가 아니라 새벽예배 생방송이 나온다, 다른 영상도" 원인 찾기(완료 조건 b: 원인 + 수정안) → "R-2·R-1 순서 바꾸기는?" → 생방송 대체 안 됨·캐시는 나중 → (b) 검색만 + PRD 먼저 + 파이프라인 → 실기기 설치 → D:165·166·167 통과 → `/done` → 핸드오프 커밋 → "F-6 마무리, PR 만들고 병합까지" → 원격 브랜치 삭제 → `/done`
+
+**결정**: 확정 결정 표 2026-11-23 행 3개. PRD 는 M3 직접 수정 대신 새 F-6(`sap run` 이 `docs/prd/<feature>.md` 를 자동 주입하므로 이름을 맞춤, `.pipeline/f-1-m3-video/` 복원본과 이름 겹침 회피). PRD·fixture 는 main 에 직접 커밋(F-5 PRD 와 같은 방식, 진성 결정)
+
+**변경**
+- 689063d `docs: F-6 설교 영상 찾기 PRD와 2025 검색 fixture 추가` (main) — `docs/prd/f-6-sermon-video.md`(신규), `00-project.md` F-6 행, `f-1-m3-video.md` "F-6 이 대체" 머리 줄, `MorningDevotionTests/Fixtures/yt-search-20250913.json`(`q=잠언 24:11-22` 응답 원문, 키 문자열 grep 0건)
+- 04ca7ec `feat: f-6-sermon-video 파이프라인 구현` (`pipeline/f-6-sermon-video`, sap 자동 커밋) — `DevotionVideoFinder.swift` +58, `DevotionScreenModel.swift` 8줄, 테스트 2파일 (실측 `git diff --stat main..HEAD`)
+- 핸드오프: PR #5 눈 확인 반영(머신 상태 실기기 줄·우선순위 1 삭제), 이번 /done
+- f757c9f `docs: 핸드오프 갱신 (2026-11-23)` · a630f21 `docs: F-6 PRD에 설계 결정 D:160·D:161 반영` (PRD 6-1절) — 둘 다 main
+- main push(3ffd61f..a630f21) → PR #6 (https://github.com/pro047/morning-devotion/pull/6) → merge commit 병합 f907863 → 로컬 main ff → `sap clean` → 원격 브랜치 삭제
+
+**지뢰**: 지뢰 섹션 "2025 묶음 글 페이지 embed 는 생방송"·"`q=<날짜> <본문>` 0건"·"worktree 에는 Secrets.xcconfig 없음"·"실기기 잠금" (이번에 밟음)
+
+**실측**
+- 원인 재현: 글 `no=15160` embed 1개 `ut225mKfy2w`(생방송, 5416초) ← 코드 `DevotionVideoFinder.swift:134`(F-6 전) 이 첫 embed 를 쓰고 검색 생략. 설교 `kH2QadelWio`(1276초, `isLiveContent false`)
+- 본문만 검색 첫 결과: 2020 `M5VtIg1WAic`·2022 `UsCVP4y7snI`·2023 `BCN20b7Yuk0`·2025 `T8fZYU9Pd0E`/`kH2QadelWio` — 전부 1번째 (PRD 7장)
+- 파이프라인: 설계 → judge(미확인 8·반박 0) → [결정] D:160·D:161 y(`sap answer`) → 기준선 통과 → red 확인 → impl → green 통과 → DONE (시도 1/3, 되감기 0). 엔진 `9023b42`
+- 검증: 셸 `TEST_CMDS`(`xcodebuild test … -quiet`) green 통과 — 런처가 PR 전에 worktree 에서 `-quiet` 없이 다시 돌려 `331 tests in 17 suites passed`, `TEST SUCCEEDED`, `EXIT=0`
+- 실기기: 04ca7ec 빌드 `EXIT=0`·`App installed` 2026-11-23 15:11. 진성 확인: D:165 2025/09/13 설교 영상(약 21분), D:166 신약 2020 재생, D:167 구약 3~4일 이동해도 "영상 없음" 아님 — 전부 통과
+- PR #5 실기기 눈 확인(2026-11-23 진성): 스피너 없음·카드 높이 그대로·아이콘은 설치 직후 바로 새 것
+
+<!-- 2026-11-26 이동 (/done) -->
+## 최신 스트림 — 2026-11-23: v0.2.0 태그와 릴리즈 노트 (resolved)
+
+**요청**: `/next` → "지금까지 작업된 걸 v0.1.0 으로 하고 릴리즈 노트 작성" → v0.1.0 이미 원격에 있음 확인 → (b) 새 `v0.2.0` → 빌드 번호도 올림·노트는 `docs/` 하위·`release/` 브랜치로 나눠 main 병합 → push·로컬 브랜치 삭제 → `/done`
+
+**결정**: 확정 결정 표 2026-11-23 "`v0.2.0`" 행 (태그 안 옮김 — 원격 태그를 옮기면 같은 이름이 두 커밋을 가리키게 돼서)
+
+**변경**
+- b373126 `chore: v0.2.0 버전 올림과 릴리즈 노트 추가` (`release/v0.2.0`) — `project.xcproj` `MARKETING_VERSION` 0.1.0→0.2.0·`CURRENT_PROJECT_VERSION` 1→2 (각 2곳, :44·:63·:94·:96), `docs/release-notes/v0.2.0.md`(신규 46줄, 범위 `v0.1.0..f907863`)
+- 98e8024 `Merge branch 'release/v0.2.0'` (main, `--no-ff`) · annotated tag `v0.2.0` → 98e8024
+- `git push origin main`·`git push origin v0.2.0` · `git branch -d release/v0.2.0`
+- 핸드오프: 이전 스트림(F-6) 아카이브 이동, 이번 /done
+
+**지뢰**: 지뢰 섹션 "`PIPESTATUS` … `EXIT=` 로 비어" (이번에 밟음)
+
+**실측**
+- `git ls-remote --tags origin` 에 `v0.1.0^{}` = f2fbe54 (세션 시작 시 이미 push 돼 있었음), 이후 `v0.2.0^{}` = 98e8024
+- 검증: `xcodebuild test -project MorningDevotion.xcodeproj -scheme MorningDevotion -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.2'` → `331 tests in 17 suites passed`, `** TEST SUCCEEDED **`, 셸 종료 코드 0
+- 미검증: 노트 첫 줄 v0.1.0 링크(`…/releases/tag/v0.1.0`, GitHub 릴리즈 없음)가 열리는지 · 버전 0.2.0 빌드의 실기기 표시
+
+<!-- 2026-11-26 이동 (/done) -->
+## 최신 스트림 — 2026-11-26: F-7 "다 봤어요"를 이전·다음 캡슐로 (resolved)
+
+**요청**: "다 읽었어요"(실제 이름 "다 봤어요") 버튼을 본문 끝에서 이전·다음 캡슐 가운데로 → 파이프라인·완료 조건 (b) 빌드·테스트 + 시뮬레이터 스크린숏·글자 버튼 → 실수 방지안 (스크롤 조건 추천했으나 진성은 영상만 보고 바로 누르고 싶음 → 확인 창) → PRD → 커밋·`sap run` → 스크린숏 → 확인 창 위치 수정 → 취소는 바깥 탭으로 PRD 수정 → 실기기 무선 설치 → 글자색 `.primary` → 커밋·push·PR 병합·산출물 복사·정리 → `/done`
+
+**결정**: 확정 결정 표 2026-11-24 "F-7" 행, 2026-11-26 "F-7 확인 창"·"PR #7"·"무선" 행
+
+**변경**
+- d940903 `docs: F-7 "다 봤어요" 캡슐 이동 PRD 추가` (main) — `docs/prd/f-7-finish-in-capsule.md` 신규, `00-project.md` 기능 목록 F-7 행
+- eddce28 `feat: f-7-finish-in-capsule 파이프라인 구현` (sap 자동 커밋) — `DevotionScreenView/Model/State.swift`, `DevotionScreenModelTests.swift` +419
+- a196b55 `fix: "다 봤어요" 확인 창을 캡슐 버튼에 붙여 아래에 뜨게 함` — `.confirmationDialog` 를 body → 캡슐 버튼
+- fee52ab `docs: F-7 PRD 확인 창 취소를 바깥 탭으로 고침` — US-2·6장·9장(D:165 결정)
+- 5086360 `fix: "다 봤어요" 글자색을 화살표와 같은 기본색으로 변경` — `.tint` → `.primary`, PRD US-1 기준 2
+- PR #7 → 병합 18c343c (merge commit), 브랜치 로컬·원격 삭제, `.pipeline/f-7-finish-in-capsule/` 메인 복사
+- 메모리 `device-update-wireless.md` 신규
+
+**지뢰**: 지뢰 섹션 "아이폰 Wi-Fi"·"`.confirmationDialog` 를 화면 전체에" (이번에 밟음). 기존 "Simulator.app 없음"·"`sap worktree` 미커밋 중단"(`WT_YES=1` 로 진행)·"worktree `Secrets.xcconfig`" 도 다시 밟음
+
+**실측**
+- 파이프라인: 설계 게이트 [결정] 1개(D:165 y) → 기준선 통과 → red 확인 → green 통과 → 자동 커밋 eddce28 (`sap run` exit 0)
+- 시뮬레이터(디버그 훅 사본, worktree 코드 무변경) 스크린숏: 안 읽은 글 캡슐 `‹ 다 봤어요 ›` 라이트·다크, 읽은 글 점, 확인 창 수정 전 위쪽 말풍선 → 수정 후 캡슐 위
+- 검증: `xcodebuild test -project MorningDevotion.xcodeproj -scheme MorningDevotion -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.2'` → `346 tests in 17 suites passed`, `** TEST SUCCEEDED **` (글자색 변경 후)
+- 미검증: 이동 중 로딩 표시·네트워크 오류 화면의 스크린숏 · D:171 44pt
+
+<!-- 2026-11-27 이동 (/done) -->
+## 최신 스트림 — 2026-11-26: F-8 글을 다 불러온 뒤에 캡슐 보이기 (resolved)
+
+**요청**: 묵상 화면 진입 시 이전·다봤어요·다음 캡슐이 화면 가운데에 뜸 → 로딩 뒤에 보이게 → (곁가지) 본문 스크롤이 가끔 잘 안 됨 확인 → 재현 안 됨, 코드로만 → 보류·기록 → 캡슐: 오류 화면도 숨김·완료 조건(실기기+TEST_CMDS)·파이프라인 → PRD → 커밋 → `sap run` → 실기기 무선 설치 → [사실] 6개 확인 → PR → 병합 → 정리 → `/done`
+
+**결정**: 확정 결정 표 2026-11-26 "F-8"·"PR #8"·"본문 스크롤 보류" 행
+
+**변경**
+- 09aa283 `docs: F-8 캡슐 로딩 후 표시 PRD 추가` (main) — `docs/prd/f-8-capsule-after-load.md` 신규, `00-project.md` 기능 목록 F-8 행
+- 8cb5bc3 `feat: f-8-capsule-after-load 파이프라인 구현` (sap 자동 커밋) — `DevotionScreenModel.swift` `showsCapsule` +7, `DevotionScreenView.swift` `safeAreaInset` 안 `if model.showsCapsule`, `DevotionScreenModelTests.swift` +280
+- PR #8 → 병합 a1ba5d2 (merge commit), 브랜치 로컬·원격 삭제, `.pipeline/f-8-capsule-after-load/` 메인 복사
+- 현재 우선순위 14번(스크롤 보류) 추가
+
+**지뢰**: 기존 "`sap worktree` 미커밋 중단" 다시 밟음 (`WT_YES=1` 로 진행), "worktree `Secrets.xcconfig`" 는 `EXTRA_FILES` 로 피함 (지뢰 줄에 덧붙임)
+
+**실측**
+- 파이프라인: design DONE(계약 3파일·기준 8개·[결정] 0개 → 설계 게이트 생략) → judge: codex `gpt-6-astra` 리밋으로 claude-opus 폴백, 미확인 4·반박 1(비차단 — 테스트 도우미 좌표 `Env` :80·`old0912` :815)·차단 0 → 기준선 통과 → red 확인 → green 통과 → 자동 커밋 8cb5bc3 (`sap run` exit 0). 비용 design $1.15·judge $1.11·impl $0.30 (로그)
+- impl 에이전트는 샌드박스에서 시뮬레이터를 못 찾아 테스트를 못 돌렸고(`Unable to find a device`), 셸 게이트가 밖에서 돌려 green
+- 검증: `xcodebuild test -project MorningDevotion.xcodeproj -scheme MorningDevotion -destination 'platform=iOS Simulator,name=iPhone 17,OS=27.2'` → `359 tests in 17 suites passed`, `** TEST SUCCEEDED **` (PR 직전)
+- 미검증: 캡슐이 가운데 뜨던 원인(`safeAreaInset` 이 작은 content 에 붙음)은 코드 기준 추정 — 수정이 상태로 숨기는 것이라 결과는 같음 · 스크린숏 없음(실기기 육안만)
+
+
+
+<!-- 2026-11-27 이동 (/done) -->
+## 최신 스트림 — 2026-11-26~27: F-9 성경 본문 바텀시트 (resolved)
+
+- **요청**: "성경 전체를 가져올 수 있음?" → 묵상 본문을 앱에서 같이 보기. 번역 차이 설명·교회가 쓰는 번역 대조 → 개역개정 결정 → F-9 PRD → 파이프라인 → 실기기 → 여백 → PR 병합
+- **결정**: 확정 결정 표 2026-11-26 "개역개정"·"F-9 B안"·"F-9 설계 [결정]", 2026-11-27 "여백·PR #9" 행. 바텀시트·플로팅 버튼은 진성 직접 입력("플로팅 버튼을 두고 눌렀을 때 바텀시트")
+- **변경**: 9b1439d PRD(`docs/prd/f-9-bible-passage.md`, `00-project.md` F-9 행) · 7a3c15f sap 구현(12파일, 2,202줄 추가) · 12daaf1 `.padding(.top, 16)` · PR #9 병합 103d546
+- **지뢰**: 지뢰 절 "커밋 안 된 PRD", "샌드박스 bskorea 차단", "DESIGN.md.crashed", "pipefail grep -v" (이번에 추가)
+- **실측**:
+  - 번역 대조: 잠언 23:25 `너를 낳은`(개역개정)·23:27 `구덩이`, 요한복음 5:30·31-32·36·39-40·41·45-46 개역개정과 일치·개역한글과 불일치 (대한성서공회 `version=GAE/HAN` 페이지)
+  - sap 주행: 설계 → judge 반박(차단 1, 63권 코드) 되감기 1 → judge 차단 1(AC-1 의 mal·mat 단언) 되감기 2 → 설계 에이전트 `ENOTFOUND` 사망 → crashed 승인 → judge 반박 0 → [결정] 9개(D:309 n) → 되감기 3 → judge 차단 0 → verify → red(오류 줄 전부 `cannot find 'Bible…' in scope` 와 그 연쇄 — 테스트 문법 오류 아님) → impl 1차 green → 자동 커밋. judge 의 gpt-6-astra 는 2회 리밋 → claude-opus-5-5 로 대체
+  - 검증: `xcodebuild test … OS=27.2` 413 tests / 20 suites 통과 (2026-11-27 09:01)
+  - 책 코드: `bible.list.js` 66개 코드 = 앱 표 66개 코드 전부 일치, 이름은 요한1·2·3서(사이트) ↔ 요한일·이·삼서(앱·교회 제목) 3개만 다름
+  - 기록 안 된 확인: F-9 [사실] 실기기 항목별 결과 (진성 "조아조아"만)
